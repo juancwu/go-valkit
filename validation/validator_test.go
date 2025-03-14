@@ -19,7 +19,7 @@ type TestAddress struct {
 
 func TestValidator(t *testing.T) {
 	// Create a validator
-	v := New("json")
+	v := New()
 
 	// Set default messages
 	v.SetDefaultMessage("required", "This field is required")

@@ -1,5 +1,7 @@
 package validation
 
+import "github.com/go-playground/validator/v10"
+
 // Config represents the configuration for the validator
 type Config struct {
 	TagName         string            // The tag name to extract field names (e.g., "json", "form")
@@ -24,7 +26,12 @@ func DefaultConfig() Config {
 
 // NewWithConfig creates a new Validator instance with the given configuration
 func NewWithConfig(config Config) *Validator {
-	v := New(config.TagName)
+	v := Validator{
+		validator:       validator.New(),
+		tagName:         config.TagName,
+		defaultMessages: make(map[string]string),
+		customMessages:  make(map[string]string),
+	}
 
 	// Set default messages
 	for tag, message := range config.DefaultMessages {
@@ -36,5 +43,5 @@ func NewWithConfig(config Config) *Validator {
 		v.SetCustomMessage(path, message)
 	}
 
-	return v
+	return &v
 }

@@ -23,15 +23,8 @@ type Validator struct {
 }
 
 // New creates a new Validator instance
-func New(tagName string) *Validator {
-	v := validator.New()
-
-	return &Validator{
-		validator:       v,
-		tagName:         tagName,
-		defaultMessages: make(map[string]string),
-		customMessages:  make(map[string]string),
-	}
+func New() *Validator {
+	return NewWithConfig(DefaultConfig())
 }
 
 // SetDefaultMessage sets a default message for a validation tag
