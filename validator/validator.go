@@ -95,7 +95,7 @@ func (v *Validator) SetFieldMessage(path string, tag string, s string) *Validato
 //
 // Without UseJsonTagName: error path would be "FirstName"
 // With UseJsonTagName: error path would be "first_name"
-func (v *Validator) UseJsonTagName() {
+func (v *Validator) UseJsonTagName() *Validator {
 	v.validator.RegisterTagNameFunc(func(field reflect.StructField) string {
 		name := strings.SplitN(field.Tag.Get("json"), ",", 2)[0]
 		if name == "-" {
@@ -104,4 +104,5 @@ func (v *Validator) UseJsonTagName() {
 		}
 		return name
 	})
+	return v
 }
