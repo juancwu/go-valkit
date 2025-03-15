@@ -1,6 +1,7 @@
 package validator
 
 import (
+	"regexp"
 	"strings"
 
 	goval "github.com/go-playground/validator/v10"
@@ -16,6 +17,30 @@ import (
 func getFullPath(ve goval.FieldError) string {
 	namespace := ve.Namespace()
 	parts := strings.Split(namespace, ".")
-	parts = parts[1:] // Skip the first part which is the struct type name
-	return strings.Join(parts, ".")
+	return strings.Join(parts[1:], ".")
+}
+
+// normalizePath standardizes a field path for consistent error key generation.
+// It processes a path string by:
+//  1. Trimming surrounding whitespace
+//  2. Handling empty paths
+//  3. Removing all spaces between field names and array indices
+//  4. Converting array indices like [0], [1], etc. to the generic form []
+//
+// This normalization enables array/slice validation errors to be grouped together
+// regardless of which specific array index had the error.
+func normalizePath(path string) string {
+	path = strings.TrimSpace(path)
+
+	if path == "" {
+		return ""
+	}
+
+	// Remove all spaces between fields/indexing
+	path = strings.ReplaceAll(path, " ", "")
+	// Remove all digits from brackets
+	re := regexp.MustCompile(`\[\d+\]`)
+	path = re.ReplaceAllString(path, "[]")
+
+	return path
 }
