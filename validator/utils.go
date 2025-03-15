@@ -4,7 +4,7 @@ import (
 	"regexp"
 	"strings"
 
-	goval "github.com/go-playground/validator/v10"
+	govalidator "github.com/go-playground/validator/v10"
 )
 
 // getFullPath generates a clean, dot-separated path string from a FieldError's namespace.
@@ -14,7 +14,7 @@ import (
 // if UseJsonTagName is called).
 //
 // For example, given a namespace "Struct.User.Address.Street", it returns "User.Address.Street".
-func getFullPath(ve goval.FieldError) string {
+func getFullPath(ve govalidator.FieldError) string {
 	namespace := ve.Namespace()
 	parts := strings.Split(namespace, ".")
 	return strings.Join(parts[1:], ".")
@@ -48,4 +48,27 @@ func normalizePath(path string) string {
 	path = re.ReplaceAllString(path, ".")
 
 	return path
+}
+
+// getMessageByPath gets the error message if matches a path in custom messages, then
+// fallback to using tag default messages. If nothing matches, the default message is used.
+// It handles path such as:
+// - "A.B"
+// - "A[]" or "A.B[]"
+func getMessageByPath(v *Validator, err govalidator.FieldError, path string) string {
+	// Normalize path to keep path-key consistent for lookup
+	path = normalizePath(path)
+
+	// Match path base messages
+	if msg, ok := v.CustomFieldMessages[path]; ok {
+		return msg
+	}
+
+	// Match default message by tag
+	if msg, ok := v.DefaultTagMessages[err.Tag()]; ok {
+		return msg
+	}
+
+	// Use default message
+	return v.DefaultMessage
 }

@@ -1,6 +1,9 @@
 package validator
 
 import (
+	"reflect"
+	"strings"
+
 	govalidator "github.com/go-playground/validator/v10"
 )
 
@@ -34,10 +37,10 @@ func (v *Validator) Validate(i interface{}) error {
 			path := getFullPath(err)
 			message := getMessageByPath(v, err, path)
 			valError := ValidationError{
-				Path:    path,
-				Message: message,
-				Tag:     err.Tag(),
-				Param:   err.Param(),
+				Path:       path,
+				Message:    message,
+				Constraint: err.Tag(),
+				Param:      err.Param(),
 			}
 			validationErrors = append(validationErrors, valError)
 		}
@@ -72,31 +75,33 @@ func (v *Validator) SetDefaultTagMessage(tag string, s string) *Validator {
 //
 // Setting an index for array fields won't make the message specific to that index.
 // Example: "photos[1]" will be normalized into "photos[]"
-func (v *Validator) SetFieldMessage(path string, s string) *Validator {
+func (v *Validator) SetFieldMessage(path string, tag string, s string) *Validator {
 	path = normalizePath(path)
 	v.CustomFieldMessages[path] = s
 	return v
 }
 
-// getMessageByPath gets the error message if matches a path in custom messages, then
-// fallback to using tag default messages. If nothing matches, the default message is used.
-// It handles path such as:
-// - "A.B"
-// - "A[]" or "A.B[]"
-func getMessageByPath(v *Validator, err govalidator.FieldError, path string) string {
-	// Normalize path to keep path-key consistent for lookup
-	path = normalizePath(path)
-
-	// Match path base messages
-	if msg, ok := v.CustomFieldMessages[path]; ok {
-		return msg
-	}
-
-	// Match default message by tag
-	if msg, ok := v.DefaultTagMessages[err.Tag()]; ok {
-		return msg
-	}
-
-	// Use default message
-	return v.DefaultMessage
+// UseJsonTagName configures the validator to use the JSON tag names in error messages
+// and field paths instead of the Go struct field names.
+//
+// This makes error messages more useful when working with JSON APIs, as the field names
+// in error messages will match the names used in JSON requests/responses.
+//
+// Example:
+//
+//	type User struct {
+//	    FirstName string `json:"first_name" validate:"required"`
+//	}
+//
+// Without UseJsonTagName: error path would be "FirstName"
+// With UseJsonTagName: error path would be "first_name"
+func (v *Validator) UseJsonTagName() {
+	v.validator.RegisterTagNameFunc(func(field reflect.StructField) string {
+		name := strings.SplitN(field.Tag.Get("json"), ",", 2)[0]
+		if name == "-" {
+			// If JSON tag is "-" (meaning "don't include in JSON"), use the actual field name
+			return field.Name
+		}
+		return name
+	})
 }

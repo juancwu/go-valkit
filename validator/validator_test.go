@@ -8,7 +8,6 @@ import (
 
 // TestValidate contains test cases for the Validate function and related functionality
 func TestValidate(t *testing.T) {
-
 	// Test that validation correctly reports the expected number of validation errors
 	t.Run("Correct ValidationErrors Count", func(t *testing.T) {
 		v := New()
@@ -84,12 +83,12 @@ func TestValidate(t *testing.T) {
 
 		// First error should be about sub.name failing min=5
 		assert.Equal(t, "sub.name", errs[0].Path)
-		assert.Equal(t, "min", errs[0].Tag)
+		assert.Equal(t, "min", errs[0].Constraint)
 		assert.Equal(t, "5", errs[0].Param)
 
 		// Second error should be about array[1] failing alpha
 		assert.Equal(t, "array[1]", errs[1].Path)
-		assert.Equal(t, "alpha", errs[1].Tag)
+		assert.Equal(t, "alpha", errs[1].Constraint)
 		assert.Equal(t, "", errs[1].Param)
 	})
 }
@@ -109,7 +108,7 @@ func TestUseJsonTagName(t *testing.T) {
 	assert.True(t, ok, "Should be of type ValidationErrors")
 
 	assert.Equal(t, "name", errs[0].Path)
-	assert.Equal(t, "required", errs[0].Tag)
+	assert.Equal(t, "required", errs[0].Constraint)
 }
 
 func TestDefaultTagName(t *testing.T) {
@@ -126,7 +125,7 @@ func TestDefaultTagName(t *testing.T) {
 	assert.True(t, ok, "Should be of type ValidationErrors")
 
 	assert.Equal(t, "Name", errs[0].Path)
-	assert.Equal(t, "required", errs[0].Tag)
+	assert.Equal(t, "required", errs[0].Constraint)
 }
 
 func TestDefaultMessage(t *testing.T) {
