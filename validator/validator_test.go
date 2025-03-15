@@ -93,3 +93,114 @@ func TestValidate(t *testing.T) {
 		assert.Equal(t, "", errs[1].Param)
 	})
 }
+
+func TestUseJsonTagName(t *testing.T) {
+	v := New()
+	v.UseJsonTagName()
+
+	type Item struct {
+		Name string `json:"name" validate:"required"`
+	}
+
+	i := Item{Name: ""}
+
+	err := v.Validate(i)
+	errs, ok := err.(ValidationErrors)
+	assert.True(t, ok, "Should be of type ValidationErrors")
+
+	assert.Equal(t, "name", errs[0].Path)
+	assert.Equal(t, "required", errs[0].Tag)
+}
+
+func TestDefaultTagName(t *testing.T) {
+	v := New()
+
+	type Item struct {
+		Name string `json:"name" validate:"required"`
+	}
+
+	i := Item{Name: ""}
+
+	err := v.Validate(i)
+	errs, ok := err.(ValidationErrors)
+	assert.True(t, ok, "Should be of type ValidationErrors")
+
+	assert.Equal(t, "Name", errs[0].Path)
+	assert.Equal(t, "required", errs[0].Tag)
+}
+
+func TestDefaultMessage(t *testing.T) {
+	type Item struct {
+		Name string `json:"name" validate:"required"`
+	}
+
+	i := Item{Name: ""}
+
+	tests := []struct {
+		Name   string
+		Input  Item
+		Output string
+		Action func(v *Validator)
+	}{
+		{
+			Name:   "No default message set",
+			Input:  i,
+			Output: "Invalid value",
+		},
+		{
+			Name:   "No default message set",
+			Input:  i,
+			Output: "New default message",
+			Action: func(v *Validator) {
+				v.SetDefaultMessage("New default message")
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.Name, func(t *testing.T) {
+			v := New()
+
+			if tc.Action != nil {
+				tc.Action(v)
+			}
+
+			err := v.Validate(tc.Input)
+			errs, ok := err.(ValidationErrors)
+			assert.True(t, ok, "Should be of type ValidationErrors")
+			assert.Equal(t, tc.Output, errs[0].Message)
+		})
+	}
+}
+
+func TestDefaultTagMessage(t *testing.T) {
+	type Item struct {
+		Name string `json:"name" validate:"required"`
+		Age  uint   `json:"age" validate:"required,min=18"`
+	}
+
+	i := Item{Name: "", Age: 13}
+
+	v := New()
+	v.UseJsonTagName()
+
+	requiredTagMsg := "This field is required"
+	minTagMsg := "This field has minimum set"
+
+	v.
+		SetDefaultTagMessage("required", requiredTagMsg).
+		SetDefaultTagMessage("min", minTagMsg)
+
+	err := v.Validate(i)
+	errs, ok := err.(ValidationErrors)
+	assert.True(t, ok, "Should be of type ValidationErrors")
+
+	for _, ve := range errs {
+		switch ve.Path {
+		case "name":
+			assert.Equal(t, requiredTagMsg, ve.Message)
+		case "age":
+			assert.Equal(t, minTagMsg, ve.Message)
+		}
+	}
+}
