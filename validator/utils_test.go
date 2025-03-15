@@ -34,6 +34,11 @@ func TestNormalizePath(t *testing.T) {
 			expected: "user.name",
 		},
 		{
+			name:     "Path with empty segments",
+			input:    "user..name",
+			expected: "user.name",
+		},
+		{
 			name:     "Path with array indices",
 			input:    "users[0].address",
 			expected: "users[].address",
@@ -106,4 +111,3 @@ func TestGetFullPath(t *testing.T) {
 	// The namespace should contain the path to the Street field
 	assert.Contains(t, result, "User.Address.Street")
 }
-

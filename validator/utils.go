@@ -38,9 +38,14 @@ func normalizePath(path string) string {
 
 	// Remove all spaces between fields/indexing
 	path = strings.ReplaceAll(path, " ", "")
+
 	// Remove all digits from brackets
 	re := regexp.MustCompile(`\[\d+\]`)
 	path = re.ReplaceAllString(path, "[]")
+
+	// Remove any duplicated dots
+	re = regexp.MustCompile(`\.+`)
+	path = re.ReplaceAllString(path, ".")
 
 	return path
 }
