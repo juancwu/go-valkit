@@ -5,6 +5,7 @@ with better error handling, customizable messages, and framework integrations.
 
 [![Enforce Proper Code Formatting](https://github.com/juancwu/go-valkit/actions/workflows/code-formatting.yml/badge.svg)](https://github.com/juancwu/go-valkit/actions/workflows/code-formatting.yml)
 [![Go Build Check](https://github.com/juancwu/go-valkit/actions/workflows/build-check.yml/badge.svg)](https://github.com/juancwu/go-valkit/actions/workflows/build-check.yml)
+[![CodeQL Advanced](https://github.com/juancwu/go-valkit/actions/workflows/codeql.yml/badge.svg)](https://github.com/juancwu/go-valkit/actions/workflows/codeql.yml)
 
 ## Features
 
