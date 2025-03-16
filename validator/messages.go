@@ -112,3 +112,26 @@ func interpolateParams(message string, params []interface{}) string {
 
 	return result
 }
+
+// CreateValidationParams creates a slice of parameters from validation error data
+// Returns parameters in a consistent order:
+// [0]: Field name
+// [1]: Field value (if available, otherwise nil)
+// [2]: Constraint parameter (if available, otherwise nil)
+func CreateValidationParams(err ValidationError) []interface{} {
+	// Always include field name as first parameter
+	params := []interface{}{err.Field}
+
+	// Add nil as second parameter (typically would be the field value,
+	// but we don't have access to it here)
+	params = append(params, nil)
+
+	// Add constraint parameter if it exists
+	if err.Param != "" {
+		params = append(params, err.Param)
+	} else {
+		params = append(params, nil)
+	}
+
+	return params
+}

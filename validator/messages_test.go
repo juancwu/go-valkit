@@ -149,3 +149,70 @@ func TestInterpolateParams(t *testing.T) {
 		})
 	}
 }
+
+func TestCreateValidationParams(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      ValidationError
+		expected []interface{}
+	}{
+		{
+			name: "Basic fields",
+			err: ValidationError{
+				Field:      "name",
+				Path:       "user.name",
+				Constraint: "required",
+				Param:      "",
+			},
+			expected: []interface{}{"name", nil, nil},
+		},
+		{
+			name: "With constraint param",
+			err: ValidationError{
+				Field:      "age",
+				Path:       "user.age",
+				Constraint: "min",
+				Param:      "18",
+			},
+			expected: []interface{}{"age", nil, "18"},
+		},
+		{
+			name: "With array index",
+			err: ValidationError{
+				Field:      "email",
+				Path:       "users[2].email",
+				Constraint: "email",
+				Param:      "",
+			},
+			expected: []interface{}{"email", nil, nil},
+		},
+		{
+			name: "With all fields",
+			err: ValidationError{
+				Field:      "score",
+				Path:       "users[3].scores[1]",
+				Constraint: "max",
+				Param:      "100",
+			},
+			expected: []interface{}{"score", nil, "100"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := CreateValidationParams(tt.err)
+
+			// Check that we have the expected number of parameters
+			assert.Equal(t, len(tt.expected), len(result),
+				"Expected %d parameters, got %d", len(tt.expected), len(result))
+
+			// Check each parameter in the expected order
+			for i, expected := range tt.expected {
+				if i < len(result) {
+					assert.Equal(t, expected, result[i],
+						"Parameter at position %d should be %v but got %v", i, expected, result[i])
+				}
+			}
+		})
+	}
+}

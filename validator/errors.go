@@ -13,7 +13,6 @@ type ValidationError struct {
 	Message    string `json:"message"`              // Human-readable error message
 	Constraint string `json:"constraint,omitempty"` // Validation tag that failed (e.g., "required", "min")
 	Param      string `json:"param,omitempty"`      // Parameter for the validation tag (e.g., "5" for min=5)
-	Index      *int   `json:"index,omitempty"`
 }
 
 // Error implements the error interface to allow ValidationError to be used as an error.

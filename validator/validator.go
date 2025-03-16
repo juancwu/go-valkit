@@ -2,6 +2,8 @@ package validator
 
 import (
 	"reflect"
+	"regexp"
+	"strconv"
 	"strings"
 
 	govalidator "github.com/go-playground/validator/v10"
@@ -64,20 +66,28 @@ func (v *Validator) Validate(i interface{}) error {
 			path := getFullPath(err)
 			normPath := normalizePath(path)
 
-			params := []interface{}{err.Param()}
-
-			message := v.Messages.ResolveMessage(normPath, err.Tag(), params)
-			if message == "" {
-				message = getMessageByPath(v, err, path)
-			}
-
+			// Create validation error with basic information
 			valError := ValidationError{
 				Field:      err.Field(),
 				Path:       path,
-				Message:    message,
 				Constraint: err.Tag(),
 				Param:      err.Param(),
 			}
+
+			// Create params for interpolation
+			params := CreateValidationParams(valError)
+
+			// Try to get message from ValidationMessages first
+			message := v.Messages.ResolveMessage(normPath, err.Tag(), params)
+
+			// Fall back to legacy message lookup if needed
+			if message == "" {
+				// For legacy messages, we need to also interpolate parameters
+				message = getLegacyMessage(v, err, path)
+				message = interpolateParams(message, params)
+			}
+
+			valError.Message = message
 			validationErrors = append(validationErrors, valError)
 		}
 
@@ -85,6 +95,19 @@ func (v *Validator) Validate(i interface{}) error {
 	}
 
 	return nil
+}
+
+// extractArrayIndex tries to extract an array index from a path like "users[2].name"
+// Returns the index and a boolean indicating success
+func extractArrayIndex(path string) (int, bool) {
+	re := regexp.MustCompile(`\[(\d+)\]`)
+	matches := re.FindStringSubmatch(path)
+	if len(matches) > 1 {
+		if idx, err := strconv.Atoi(matches[1]); err == nil {
+			return idx, true
+		}
+	}
+	return 0, false
 }
 
 // SetDefaultMessage sets the default message that should be used if not path/tag matches
@@ -158,4 +181,22 @@ func (v *Validator) UseJsonTagName() *Validator {
 		return name
 	})
 	return v
+}
+
+func getLegacyMessage(v *Validator, err govalidator.FieldError, path string) string {
+	// Normalize path to keep path-key consistent for lookup
+	path = normalizePath(path)
+
+	// Match path base messages
+	if msg, ok := v.CustomFieldMessages[path]; ok {
+		return msg
+	}
+
+	// Match default message by tag
+	if msg, ok := v.DefaultTagMessages[err.Tag()]; ok {
+		return msg
+	}
+
+	// Use default message
+	return v.DefaultMessage
 }
