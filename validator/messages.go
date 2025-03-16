@@ -45,7 +45,7 @@ func (vm ValidationMessages) SetDefaultMessage(path, message string) {
 
 // ResolveMessage gets the appropriate message for a path and constraint.
 // This method will return an emtpy string if no message was set for path and constraint.
-func (vm ValidationMessages) ResolveMessage(path, constraint string, params map[string]interface{}) string {
+func (vm ValidationMessages) ResolveMessage(path, constraint string, params []interface{}) string {
 	if config, exists := vm[path]; exists {
 		if msg, ok := config.Constraints[constraint]; ok {
 			return interpolateParams(msg, params)
@@ -60,14 +60,14 @@ func (vm ValidationMessages) ResolveMessage(path, constraint string, params map[
 }
 
 // interpolateParams replaces placeholders in message with values
-func interpolateParams(message string, params map[string]interface{}) string {
+func interpolateParams(message string, params []interface{}) string {
 	if params == nil {
 		return message
 	}
 
 	result := message
-	for key, value := range params {
-		placeholder := fmt.Sprintf("{%s}", key)
+	for i, value := range params {
+		placeholder := fmt.Sprintf("{%d}", i)
 		replacement := fmt.Sprintf("%v", value)
 		result = strings.Replace(result, placeholder, replacement, -1)
 	}
