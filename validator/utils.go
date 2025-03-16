@@ -49,26 +49,3 @@ func normalizePath(path string) string {
 
 	return path
 }
-
-// getMessageByPath gets the error message if matches a path in custom messages, then
-// fallback to using tag default messages. If nothing matches, the default message is used.
-// It handles path such as:
-// - "A.B"
-// - "A[]" or "A.B[]"
-func getMessageByPath(v *Validator, err govalidator.FieldError, path string) string {
-	// Normalize path to keep path-key consistent for lookup
-	path = normalizePath(path)
-
-	// Match path base messages
-	if msg, ok := v.CustomFieldMessages[path]; ok {
-		return msg
-	}
-
-	// Match default message by tag
-	if msg, ok := v.DefaultTagMessages[err.Tag()]; ok {
-		return msg
-	}
-
-	// Use default message
-	return v.DefaultMessage
-}

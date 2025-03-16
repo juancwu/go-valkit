@@ -10,11 +10,10 @@ import (
 )
 
 type Validator struct {
-	validator           *govalidator.Validate
-	DefaultMessage      string
-	DefaultTagMessages  map[string]string
-	CustomFieldMessages map[string]string
-	Messages            ValidationMessages
+	validator          *govalidator.Validate
+	DefaultMessage     string
+	DefaultTagMessages map[string]string
+	Messages           ValidationMessages
 }
 
 // New creates a new Validator instance with default configuration.
@@ -22,11 +21,10 @@ func New() *Validator {
 	v := govalidator.New()
 
 	return &Validator{
-		validator:           v,
-		DefaultMessage:      "Invalid value",
-		DefaultTagMessages:  make(map[string]string),
-		CustomFieldMessages: make(map[string]string),
-		Messages:            NewValidationMessages(),
+		validator:          v,
+		DefaultMessage:     "Invalid value",
+		DefaultTagMessages: make(map[string]string),
+		Messages:           NewValidationMessages(),
 	}
 }
 
@@ -35,21 +33,16 @@ func New() *Validator {
 // This allows different handlers or methods to have custom error messages.
 func (v *Validator) UseMessages(messages ValidationMessages) *Validator {
 	newV := &Validator{
-		validator:           v.validator,
-		DefaultMessage:      v.DefaultMessage,
-		DefaultTagMessages:  make(map[string]string),
-		CustomFieldMessages: make(map[string]string),
-		Messages:            messages,
+		validator:          v.validator,
+		DefaultMessage:     v.DefaultMessage,
+		DefaultTagMessages: make(map[string]string),
+		Messages:           messages,
 	}
 
 	newV.DefaultMessage = v.DefaultMessage
 
 	for tag, msg := range v.DefaultTagMessages {
 		newV.DefaultTagMessages[tag] = msg
-	}
-
-	for path, msg := range v.CustomFieldMessages {
-		newV.CustomFieldMessages[path] = msg
 	}
 
 	return newV
@@ -80,11 +73,13 @@ func (v *Validator) Validate(i interface{}) error {
 			// Try to get message from ValidationMessages first
 			message := v.Messages.ResolveMessage(normPath, err.Tag(), params)
 
-			// Fall back to legacy message lookup if needed
+			// Fall back to default message lookup
 			if message == "" {
-				// For legacy messages, we need to also interpolate parameters
-				message = getLegacyMessage(v, err, path)
-				message = interpolateParams(message, params)
+				if msg, ok := v.DefaultTagMessages[err.Tag()]; ok {
+					message = interpolateParams(msg, params)
+				} else {
+					message = interpolateParams(v.DefaultMessage, params)
+				}
 			}
 
 			valError.Message = message
@@ -120,23 +115,6 @@ func (v *Validator) SetDefaultMessage(s string) *Validator {
 // Example: "required", "email"
 func (v *Validator) SetDefaultTagMessage(tag string, s string) *Validator {
 	v.DefaultTagMessages[tag] = s
-	return v
-}
-
-// SetFieldMessage sets a custom message for a specific field defined by a path.
-// A path looks like "user.profile.firstname" or "user.profile.photos[]".
-//
-// If the validator is using JSON as tag name, then make sure to define the path
-// using the json name instead of the field name.
-//
-// For cases not using JSON as tag name, make sure to match the casing of the field.
-// Example: "User.Profile.Firstname"
-//
-// Setting an index for array fields won't make the message specific to that index.
-// Example: "photos[1]" will be normalized into "photos[]"
-func (v *Validator) SetFieldMessage(path string, tag string, s string) *Validator {
-	path = normalizePath(path)
-	v.CustomFieldMessages[path] = s
 	return v
 }
 
@@ -186,11 +164,6 @@ func (v *Validator) UseJsonTagName() *Validator {
 func getLegacyMessage(v *Validator, err govalidator.FieldError, path string) string {
 	// Normalize path to keep path-key consistent for lookup
 	path = normalizePath(path)
-
-	// Match path base messages
-	if msg, ok := v.CustomFieldMessages[path]; ok {
-		return msg
-	}
 
 	// Match default message by tag
 	if msg, ok := v.DefaultTagMessages[err.Tag()]; ok {
