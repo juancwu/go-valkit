@@ -2,6 +2,7 @@ package validator
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -59,17 +60,54 @@ func (vm ValidationMessages) ResolveMessage(path, constraint string, params []in
 	return ""
 }
 
-// interpolateParams replaces placeholders in message with values
+// interpolateParams replaces positional placeholders in a message with values from an array
+// Placeholders use the format {0}, {1}, {2}, etc.
+// Also supports escaped braces with double braces: {{placeholder}} -> {placeholder}
 func interpolateParams(message string, params []interface{}) string {
-	if params == nil {
+	if params == nil || len(params) == 0 {
 		return message
 	}
 
-	result := message
-	for i, value := range params {
+	// Regular expression to find escaped braces (double braces)
+	escapedPattern := regexp.MustCompile(`{{([^{}]*?)}}`)
+
+	// Store all escaped sequences for later restoration
+	var replacements []struct {
+		placeholder string
+		replacement string
+	}
+
+	// Find all escaped sequences and generate unique placeholders
+	result := escapedPattern.ReplaceAllStringFunc(message, func(match string) string {
+		// Generate a unique placeholder that's unlikely to occur in the message
+		placeholder := fmt.Sprintf("__ESCAPED_BRACE_%d__", len(replacements))
+
+		// Extract content between double braces and create the single-brace version
+		inner := match[2 : len(match)-2] // Remove {{ and }}
+		replacement := "{" + inner + "}"
+
+		// Store for later restoration
+		replacements = append(replacements, struct {
+			placeholder string
+			replacement string
+		}{
+			placeholder: placeholder,
+			replacement: replacement,
+		})
+
+		return placeholder
+	})
+
+	// Replace positional placeholders with parameter values
+	for i, param := range params {
 		placeholder := fmt.Sprintf("{%d}", i)
-		replacement := fmt.Sprintf("%v", value)
-		result = strings.Replace(result, placeholder, replacement, -1)
+		stringValue := fmt.Sprintf("%v", param)
+		result = strings.Replace(result, placeholder, stringValue, -1)
+	}
+
+	// Restore all escaped placeholders with their single-brace versions
+	for _, item := range replacements {
+		result = strings.Replace(result, item.placeholder, item.replacement, 1)
 	}
 
 	return result

@@ -114,6 +114,32 @@ func TestInterpolateParams(t *testing.T) {
 			params:   []interface{}{"username", "string"},
 			expected: "Error in username and string",
 		},
+
+		// Escaped braces cases
+		{
+			name:     "Simple escaped braces",
+			message:  "Use {{param}} syntax for placeholder {0}",
+			params:   []interface{}{"value"},
+			expected: "Use {param} syntax for placeholder value",
+		},
+		{
+			name:     "Multiple escaped braces",
+			message:  "Syntax: {{index}}, {0}, {1}",
+			params:   []interface{}{"value1", "value2"},
+			expected: "Syntax: {index}, value1, value2",
+		},
+		{
+			name:     "Complex mixed case",
+			message:  "Error in {{json.field}} structure. Field {0} value {1} is invalid. Use {{example}} format.",
+			params:   []interface{}{"username", "test@123"},
+			expected: "Error in {json.field} structure. Field username value test@123 is invalid. Use {example} format.",
+		},
+		{
+			name:     "Mixed numeric placeholders and escaped braces",
+			message:  "Error in field {0}: must match format {{0}}-{1}-{2}",
+			params:   []interface{}{"date", "yyyy", "mm", "dd"},
+			expected: "Error in field date: must match format {0}-yyyy-mm",
+		},
 	}
 
 	for _, tt := range tests {
