@@ -12,6 +12,7 @@ type Validator struct {
 	DefaultMessage      string
 	DefaultTagMessages  map[string]string
 	CustomFieldMessages map[string]string
+	Messages            ValidationMessages
 }
 
 // New creates a new Validator instance with default configuration.
@@ -23,7 +24,33 @@ func New() *Validator {
 		DefaultMessage:      "Invalid value",
 		DefaultTagMessages:  make(map[string]string),
 		CustomFieldMessages: make(map[string]string),
+		Messages:            NewValidationMessages(),
 	}
+}
+
+// UseMessages creates a new Validator instance with the same base configuration
+// but with different validation messages for the specific context.
+// This allows different handlers or methods to have custom error messages.
+func (v *Validator) UseMessages(messages ValidationMessages) *Validator {
+	newV := &Validator{
+		validator:           v.validator,
+		DefaultMessage:      v.DefaultMessage,
+		DefaultTagMessages:  make(map[string]string),
+		CustomFieldMessages: make(map[string]string),
+		Messages:            messages,
+	}
+
+	newV.DefaultMessage = v.DefaultMessage
+
+	for tag, msg := range v.DefaultTagMessages {
+		newV.DefaultTagMessages[tag] = msg
+	}
+
+	for path, msg := range v.CustomFieldMessages {
+		newV.CustomFieldMessages[path] = msg
+	}
+
+	return newV
 }
 
 // Validate performs validation on the provided struct based on its validation tags.
@@ -35,8 +62,17 @@ func (v *Validator) Validate(i interface{}) error {
 
 		for _, err := range err.(govalidator.ValidationErrors) {
 			path := getFullPath(err)
-			message := getMessageByPath(v, err, path)
+			normPath := normalizePath(path)
+
+			params := []interface{}{err.Param()}
+
+			message := v.Messages.ResolveMessage(normPath, err.Tag(), params)
+			if message == "" {
+				message = getMessageByPath(v, err, path)
+			}
+
 			valError := ValidationError{
+				Field:      err.Field(),
 				Path:       path,
 				Message:    message,
 				Constraint: err.Tag(),
@@ -78,6 +114,23 @@ func (v *Validator) SetDefaultTagMessage(tag string, s string) *Validator {
 func (v *Validator) SetFieldMessage(path string, tag string, s string) *Validator {
 	path = normalizePath(path)
 	v.CustomFieldMessages[path] = s
+	return v
+}
+
+// SetConstraintMessage sets a specific message for a field path and constraint combination.
+// Example: v.SetConstraintMessage("user.profile.firstname", "required", "First name is required")
+func (v *Validator) SetConstraintMessage(path, constraint, message string) *Validator {
+	path = normalizePath(path)
+	v.Messages.SetMessage(path, constraint, message)
+	return v
+}
+
+// SetPathDefaultMessage sets a default message for a field path to use when no constraint-specific
+// message is found.
+// Example: v.SetPathDefaultMessage("user.profile.firstname", "First name is invalid")
+func (v *Validator) SetPathDefaultMessage(path, message string) *Validator {
+	path = normalizePath(path)
+	v.Messages.SetDefaultMessage(path, message)
 	return v
 }
 
