@@ -58,24 +58,26 @@ func (v *Validator) Validate(i interface{}) error {
 		for _, err := range err.(govalidator.ValidationErrors) {
 			path := getFullPath(err)
 			normPath := normalizePath(path)
+			tag := err.ActualTag()
+			param := err.Param()
 
 			// Create validation error with basic information
 			valError := ValidationError{
 				Field:      err.Field(),
 				Path:       path,
-				Constraint: err.Tag(),
-				Param:      err.Param(),
+				Constraint: tag,
+				Param:      param,
 			}
 
 			// Create params for interpolation
 			params := CreateValidationParams(valError)
 
 			// Try to get message from ValidationMessages first
-			message := v.Messages.ResolveMessage(normPath, err.Tag(), params)
+			message := v.Messages.ResolveMessage(normPath, tag, params)
 
 			// Fall back to default message lookup
 			if message == "" {
-				if msg, ok := v.DefaultTagMessages[err.Tag()]; ok {
+				if msg, ok := v.DefaultTagMessages[tag]; ok {
 					message = interpolateParams(msg, params)
 				} else {
 					message = interpolateParams(v.DefaultMessage, params)

@@ -278,7 +278,7 @@ func TestRegisterAlias(t *testing.T) {
 	errs, ok := err.(ValidationErrors)
 	assert.True(t, ok, "Should be of type ValidationErrors")
 	assert.Equal(t, "username", errs[0].Path)
-	assert.Equal(t, "username", errs[0].Constraint)
+	assert.Equal(t, "min", errs[0].Constraint)
 
 	// Test with a valid username
 	u2 := User{UserName: "validuser123"}
