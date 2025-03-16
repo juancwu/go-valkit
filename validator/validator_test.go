@@ -1,8 +1,11 @@
 package validator
 
 import (
+	"reflect"
+	"strings"
 	"testing"
 
+	goval "github.com/go-playground/validator/v10"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -202,4 +205,83 @@ func TestDefaultTagMessage(t *testing.T) {
 			assert.Equal(t, minTagMsg, ve.Message)
 		}
 	}
+}
+
+func TestRegisterTagNameFunc(t *testing.T) {
+	v := New()
+
+	// Register a custom tag name function that uses "form" tags
+	v.RegisterTagNameFunc(func(field reflect.StructField) string {
+		name := field.Tag.Get("form")
+		if name == "" {
+			return field.Name
+		}
+		return name
+	})
+
+	type Item struct {
+		UserName string `form:"username" validate:"required"`
+	}
+
+	i := Item{UserName: ""}
+
+	err := v.Validate(i)
+	errs, ok := err.(ValidationErrors)
+	assert.True(t, ok, "Should be of type ValidationErrors")
+
+	assert.Equal(t, "username", errs[0].Path)
+	assert.Equal(t, "required", errs[0].Constraint)
+}
+
+func TestRegisterValidation(t *testing.T) {
+	v := New()
+	v.UseJsonTagName()
+
+	// Register a custom validation rule that checks if a string contains "test"
+	err := v.RegisterValidation("containstest", func(fl goval.FieldLevel) bool {
+		return strings.Contains(fl.Field().String(), "test")
+	})
+	assert.NoError(t, err)
+
+	type Item struct {
+		Message string `json:"message" validate:"containstest"`
+	}
+
+	// Test with a value that doesn't contain "test"
+	i1 := Item{Message: "hello"}
+	err = v.Validate(i1)
+	errs, ok := err.(ValidationErrors)
+	assert.True(t, ok, "Should be of type ValidationErrors")
+	assert.Equal(t, "message", errs[0].Path)
+	assert.Equal(t, "containstest", errs[0].Constraint)
+
+	// Test with a value that contains "test"
+	i2 := Item{Message: "hello test"}
+	err = v.Validate(i2)
+	assert.NoError(t, err)
+}
+
+func TestRegisterAlias(t *testing.T) {
+	v := New()
+	v.UseJsonTagName()
+
+	// Register an alias for common validation rules
+	v.RegisterAlias("username", "required,min=3,max=20,alphanum")
+
+	type User struct {
+		UserName string `json:"username" validate:"username"`
+	}
+
+	// Test with an invalid username
+	u1 := User{UserName: "ab"}
+	err := v.Validate(u1)
+	errs, ok := err.(ValidationErrors)
+	assert.True(t, ok, "Should be of type ValidationErrors")
+	assert.Equal(t, "username", errs[0].Path)
+	assert.Equal(t, "username", errs[0].Constraint)
+
+	// Test with a valid username
+	u2 := User{UserName: "validuser123"}
+	err = v.Validate(u2)
+	assert.NoError(t, err)
 }

@@ -135,6 +135,13 @@ func (v *Validator) SetPathDefaultMessage(path, message string) *Validator {
 	return v
 }
 
+// RegisterTagNameFunc registers a function to extract the tag name from the field's struct tag.
+// This allows custom tag name customization similar to UseJsonTagName but with any custom logic.
+func (v *Validator) RegisterTagNameFunc(fn func(field reflect.StructField) string) *Validator {
+	v.validator.RegisterTagNameFunc(fn)
+	return v
+}
+
 // UseJsonTagName configures the validator to use the JSON tag names in error messages
 // and field paths instead of the Go struct field names.
 //
@@ -150,7 +157,7 @@ func (v *Validator) SetPathDefaultMessage(path, message string) *Validator {
 // Without UseJsonTagName: error path would be "FirstName"
 // With UseJsonTagName: error path would be "first_name"
 func (v *Validator) UseJsonTagName() *Validator {
-	v.validator.RegisterTagNameFunc(func(field reflect.StructField) string {
+	return v.RegisterTagNameFunc(func(field reflect.StructField) string {
 		name := strings.SplitN(field.Tag.Get("json"), ",", 2)[0]
 		if name == "-" {
 			// If JSON tag is "-" (meaning "don't include in JSON"), use the actual field name
@@ -158,18 +165,21 @@ func (v *Validator) UseJsonTagName() *Validator {
 		}
 		return name
 	})
-	return v
 }
 
-func getLegacyMessage(v *Validator, err govalidator.FieldError, path string) string {
-	// Normalize path to keep path-key consistent for lookup
-	path = normalizePath(path)
+// RegisterValidation registers a custom validation with the given tag.
+// This allows developers to add their own validation logic beyond what's built-in.
+func (v *Validator) RegisterValidation(tag string, fn govalidator.Func, callValidationEvenIfNull ...bool) error {
+	return v.validator.RegisterValidation(tag, fn, callValidationEvenIfNull...)
+}
 
-	// Match default message by tag
-	if msg, ok := v.DefaultTagMessages[err.Tag()]; ok {
-		return msg
-	}
-
-	// Use default message
-	return v.DefaultMessage
+// RegisterAlias registers a mapping of a single validation tag that
+// defines a common or complex set of validation(s) to simplify adding validation
+// to structs.
+//
+// Example:
+//
+//	v.RegisterAlias("userid", "required,min=6,max=30")
+func (v *Validator) RegisterAlias(alias, tags string) {
+	v.validator.RegisterAlias(alias, tags)
 }
