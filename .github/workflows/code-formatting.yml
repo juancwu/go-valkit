@@ -1,4 +1,7 @@
 name: Enforce Proper Code Formatting
+permissions:
+  contents: read
+  pull-requests: read
 on:
   workflow_dispatch:
   pull_request:

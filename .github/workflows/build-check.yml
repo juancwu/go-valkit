@@ -1,4 +1,7 @@
 name: Go Build Check
+permissions:
+  contents: read
+  pull-requests: read
 on:
   workflow_dispatch:
   pull_request:
