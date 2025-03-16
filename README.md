@@ -3,6 +3,8 @@
 A powerful and flexible Go validation library that enhances [go-playground/validator](https://github.com/go-playground/validator)
 with better error handling, customizable messages, and framework integrations.
 
+[![Enforce Proper Code Formatting](https://github.com/juancwu/go-valkit/actions/workflows/code-formatting.yml/badge.svg)](https://github.com/juancwu/go-valkit/actions/workflows/code-formatting.yml)
+
 ## Features
 
 - **Enhanced Error Handling**: Structured validation errors with field paths, constraints, and parameters
@@ -165,4 +167,3 @@ validator.WithFormatter(&MyErrorFormatter{})
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
-
