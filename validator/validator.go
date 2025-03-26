@@ -1,6 +1,7 @@
 package validator
 
 import (
+	"context"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -48,11 +49,11 @@ func (v *Validator) UseMessages(messages ValidationMessages) *Validator {
 	return newV
 }
 
-// Validate performs validation on the provided struct based on its validation tags.
+// ValidateCtx performs validation on the provided struct based on its validation tags using the given context.
 // Returns nil if validation passes, or ValidationErrors containing details about
 // validation failures.
-func (v *Validator) Validate(i interface{}) error {
-	if err := v.validator.Struct(i); err != nil {
+func (v *Validator) ValidateCtx(ctx context.Context, i interface{}) error {
+	if err := v.validator.StructCtx(ctx, i); err != nil {
 		validationErrors := ValidationErrors{}
 
 		for _, err := range err.(govalidator.ValidationErrors) {
@@ -94,6 +95,13 @@ func (v *Validator) Validate(i interface{}) error {
 	}
 
 	return nil
+}
+
+// Validate performs validation on the provided struct based on its validation tags.
+// Returns nil if validation passes, or ValidationErrors containing details about
+// validation failures.
+func (v *Validator) Validate(i interface{}) error {
+	return v.ValidateCtx(context.Background(), i)
 }
 
 // extractArrayIndex tries to extract an array index from a path like "users[2].name"
