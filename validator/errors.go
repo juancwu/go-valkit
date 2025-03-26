@@ -36,3 +36,27 @@ func (ve ValidationErrors) Error() string {
 	}
 	return builder.String()
 }
+
+// GroupErrorsByPath groups validation errors by their path
+func (ve ValidationErrors) GroupErrorsByPath() map[string]ValidationErrors {
+	groupedErrors := make(map[string]ValidationErrors)
+
+	for _, err := range ve {
+		groupedErrors[err.Path] = append(groupedErrors[err.Path], err)
+	}
+
+	return groupedErrors
+}
+
+// ErrorsForPath returns all errors for a specific path
+func (ve ValidationErrors) ErrorsForPath(path string) ValidationErrors {
+	var pathErrors ValidationErrors
+
+	for _, err := range ve {
+		if err.Path == path {
+			pathErrors = append(pathErrors, err)
+		}
+	}
+
+	return pathErrors
+}
