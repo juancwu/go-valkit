@@ -8,11 +8,12 @@ import (
 // ValidationError represents a single validation error for a specific field.
 // It includes the field path, error message, and metadata about the validation rule.
 type ValidationError struct {
-	Field      string `json:"field"`                // Field name of the leaf in path
-	Path       string `json:"path"`                 // JSON path to the field with the error
-	Message    string `json:"message"`              // Human-readable error message
-	Constraint string `json:"constraint,omitempty"` // Validation tag that failed (e.g., "required", "min")
-	Param      string `json:"param,omitempty"`      // Parameter for the validation tag (e.g., "5" for min=5)
+	Field      string      `json:"field"`                // Field name of the leaf in path
+	Path       string      `json:"path"`                 // JSON path to the field with the error
+	Message    string      `json:"message"`              // Human-readable error message
+	Constraint string      `json:"constraint,omitempty"` // Validation tag that failed (e.g., "required", "min")
+	Param      string      `json:"param,omitempty"`      // Parameter for the validation tag (e.g., "5" for min=5)
+	Actual     interface{} `json:"actual,omitempty"`     // Actual value that failed validation
 }
 
 // Error implements the error interface to allow ValidationError to be used as an error.

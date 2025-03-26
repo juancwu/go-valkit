@@ -60,6 +60,7 @@ func (v *Validator) Validate(i interface{}) error {
 			normPath := normalizePath(path)
 			tag := err.ActualTag()
 			param := err.Param()
+			actual := err.Value()
 
 			// Create validation error with basic information
 			valError := ValidationError{
@@ -67,6 +68,7 @@ func (v *Validator) Validate(i interface{}) error {
 				Path:       path,
 				Constraint: tag,
 				Param:      param,
+				Actual:     actual,
 			}
 
 			// Create params for interpolation
