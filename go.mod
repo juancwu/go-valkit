@@ -1,4 +1,4 @@
-module github.com/juancwu/go-valkit
+module github.com/juancwu/go-valkit/v2
 
 go 1.24.1
 

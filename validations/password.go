@@ -5,7 +5,7 @@ import (
 	"regexp"
 
 	govalidator "github.com/go-playground/validator/v10"
-	"github.com/juancwu/go-valkit/validator"
+	"github.com/juancwu/go-valkit/v2/validator"
 )
 
 // PasswordOptions holds configuration for password validation requirements

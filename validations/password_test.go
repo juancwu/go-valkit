@@ -3,7 +3,7 @@ package validations
 import (
 	"testing"
 
-	"github.com/juancwu/go-valkit/validator"
+	"github.com/juancwu/go-valkit/v2/validator"
 	"github.com/stretchr/testify/assert"
 )
 
