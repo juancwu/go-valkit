@@ -119,12 +119,8 @@ func interpolateParams(message string, params []interface{}) string {
 // [1]: Field value (if available, otherwise nil)
 // [2]: Constraint parameter (if available, otherwise nil)
 func CreateValidationParams(err ValidationError) []interface{} {
-	// Always include field name as first parameter
-	params := []interface{}{err.Field}
-
-	// Add nil as second parameter (typically would be the field value,
-	// but we don't have access to it here)
-	params = append(params, nil)
+	// Always include field name as first parameter and field value as second parameter
+	params := []interface{}{err.Field, err.Actual}
 
 	// Add constraint parameter if it exists
 	if err.Param != "" {
