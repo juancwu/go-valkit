@@ -285,3 +285,168 @@ func TestRegisterAlias(t *testing.T) {
 	err = v.Validate(u2)
 	assert.NoError(t, err)
 }
+
+func TestUseMessages(t *testing.T) {
+	// Create a base validator with some default messages
+	baseValidator := New()
+	baseValidator.SetDefaultMessage("Base default message")
+	baseValidator.SetDefaultTagMessage("required", "Base required message")
+	baseValidator.SetDefaultTagMessage("min", "Base minimum message")
+
+	// Create custom messages
+	customMessages := NewValidationMessages()
+	customMessages.SetDefaultMessage("user.name", "Custom name message")
+	customMessages.SetMessage("user.email", "email", "Custom email message")
+
+	// Create a new validator with custom messages
+	v := baseValidator.UseMessages(customMessages)
+
+	// Test that the default message was copied
+	assert.Equal(t, "Base default message", v.DefaultMessage)
+
+	// Test that the default tag messages were copied
+	assert.Equal(t, "Base required message", v.DefaultTagMessages["required"])
+	assert.Equal(t, "Base minimum message", v.DefaultTagMessages["min"])
+
+	// Test that the custom messages were set correctly
+	assert.Equal(t, "Custom name message", v.Messages.ResolveMessage("user.name", "anything", nil))
+	assert.Equal(t, "Custom email message", v.Messages.ResolveMessage("user.email", "email", nil))
+
+	// Test that original validator isn't affected by changes to the new one
+	v.SetDefaultMessage("New default message")
+	assert.Equal(t, "Base default message", baseValidator.DefaultMessage)
+	assert.Equal(t, "New default message", v.DefaultMessage)
+}
+
+func TestExtractArrayIndex(t *testing.T) {
+	tests := []struct {
+		name          string
+		path          string
+		expectedIndex int
+		expectedFound bool
+	}{
+		{
+			name:          "Simple path without index",
+			path:          "user.name",
+			expectedIndex: 0,
+			expectedFound: false,
+		},
+		{
+			name:          "Path with index",
+			path:          "users[2].name",
+			expectedIndex: 2,
+			expectedFound: true,
+		},
+		{
+			name:          "Path with multiple indices - should get first index",
+			path:          "users[1].addresses[3].street",
+			expectedIndex: 1,
+			expectedFound: true,
+		},
+		{
+			name:          "Path with non-numeric index",
+			path:          "users[abc].name",
+			expectedIndex: 0,
+			expectedFound: false,
+		},
+		{
+			name:          "Path with empty brackets",
+			path:          "users[].name",
+			expectedIndex: 0,
+			expectedFound: false,
+		},
+		{
+			name:          "Path with negative index",
+			path:          "users[-1].name",
+			expectedIndex: 0, // Function should only match \d+ (only positive digits)
+			expectedFound: false,
+		},
+		{
+			name:          "Path with very large index",
+			path:          "users[9999999].name",
+			expectedIndex: 9999999,
+			expectedFound: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			index, found := extractArrayIndex(tt.path)
+			assert.Equal(t, tt.expectedIndex, index)
+			assert.Equal(t, tt.expectedFound, found)
+		})
+	}
+}
+
+func TestSetConstraintMessage(t *testing.T) {
+	v := New()
+
+	// Set a constraint message
+	v.SetConstraintMessage("user.name", "required", "Name is required")
+
+	// Verify that the message was set correctly
+	message := v.Messages.ResolveMessage("user.name", "required", nil)
+	assert.Equal(t, "Name is required", message)
+
+	// Test path normalization with array indices
+	v.SetConstraintMessage("users[0].address", "required", "Address is required")
+	message = v.Messages.ResolveMessage("users[].address", "required", nil)
+	assert.Equal(t, "Address is required", message)
+
+	// Test with spaces in the path
+	v.SetConstraintMessage(" user.email ", "email", "Email is invalid")
+	message = v.Messages.ResolveMessage("user.email", "email", nil)
+	assert.Equal(t, "Email is invalid", message)
+
+	// Test with multiple array indices
+	v.SetConstraintMessage("users[1].addresses[2].street", "required", "Street is required")
+	message = v.Messages.ResolveMessage("users[].addresses[].street", "required", nil)
+	assert.Equal(t, "Street is required", message)
+
+	// Test overwriting existing message
+	v.SetConstraintMessage("user.name", "required", "First name is required")
+	message = v.Messages.ResolveMessage("user.name", "required", nil)
+	assert.Equal(t, "First name is required", message)
+
+	// Test with interpolation params
+	v.SetConstraintMessage("user.age", "min", "Age must be at least {2}")
+	params := []interface{}{"age", nil, "18"}
+	message = v.Messages.ResolveMessage("user.age", "min", params)
+	assert.Equal(t, "Age must be at least 18", message)
+}
+
+func TestSetPathDefaultMessage(t *testing.T) {
+	v := New()
+
+	// Set a default message for a path
+	v.SetPathDefaultMessage("user.name", "Name is invalid")
+
+	// Verify that the message is used for any constraint
+	message := v.Messages.ResolveMessage("user.name", "anything", nil)
+	assert.Equal(t, "Name is invalid", message)
+
+	// Test that a specific constraint message takes precedence
+	v.SetConstraintMessage("user.name", "required", "Name is required")
+	message = v.Messages.ResolveMessage("user.name", "required", nil)
+	assert.Equal(t, "Name is required", message)
+
+	// But the default is still used for other constraints
+	message = v.Messages.ResolveMessage("user.name", "min", nil)
+	assert.Equal(t, "Name is invalid", message)
+
+	// Test path normalization
+	v.SetPathDefaultMessage("users[0].address", "Address is invalid")
+	message = v.Messages.ResolveMessage("users[].address", "min", nil)
+	assert.Equal(t, "Address is invalid", message)
+
+	// Test with parameter interpolation
+	v.SetPathDefaultMessage("user.age", "Age {0} is invalid")
+	params := []interface{}{"age", nil, nil}
+	message = v.Messages.ResolveMessage("user.age", "anything", params)
+	assert.Equal(t, "Age age is invalid", message)
+
+	// Test overwriting existing message
+	v.SetPathDefaultMessage("user.name", "User name is invalid")
+	message = v.Messages.ResolveMessage("user.name", "min", nil)
+	assert.Equal(t, "User name is invalid", message)
+}
