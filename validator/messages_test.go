@@ -140,6 +140,38 @@ func TestInterpolateParams(t *testing.T) {
 			params:   []interface{}{"date", "yyyy", "mm", "dd"},
 			expected: "Error in field date: must match format {0}-yyyy-mm",
 		},
+
+		// Named parameter cases
+		{
+			name:     "Named parameter - field",
+			message:  "The {field} must be valid",
+			params:   []interface{}{"email", "test@example.com", ""},
+			expected: "The email must be valid",
+		},
+		{
+			name:     "Named parameter - value",
+			message:  "The value {value} is invalid",
+			params:   []interface{}{"email", "test@example.com", ""},
+			expected: "The value test@example.com is invalid",
+		},
+		{
+			name:     "Named parameter - param",
+			message:  "Value must be at least {param}",
+			params:   []interface{}{"length", "", "8"},
+			expected: "Value must be at least 8",
+		},
+		{
+			name:     "Mixed named and positional parameters",
+			message:  "Field {field} with value {1} must be at least {param} characters",
+			params:   []interface{}{"password", "abc", "8"},
+			expected: "Field password with value abc must be at least 8 characters",
+		},
+		{
+			name:     "Named parameters with nil values",
+			message:  "Field {field} with value {value} must be {param}",
+			params:   []interface{}{"email", nil, nil},
+			expected: "Field email with value  must be ",
+		},
 	}
 
 	for _, tt := range tests {

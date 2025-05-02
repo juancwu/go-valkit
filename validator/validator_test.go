@@ -207,6 +207,66 @@ func TestDefaultTagMessage(t *testing.T) {
 	}
 }
 
+func TestNamedParameterInterpolation(t *testing.T) {
+	type User struct {
+		Username string `json:"username" validate:"required,min=5"`
+		Email    string `json:"email" validate:"required,email"`
+		Age      int    `json:"age" validate:"required,min=18"`
+	}
+
+	// Create a user with validation errors
+	user := User{
+		Username: "abc",       // Too short, min=5
+		Email:    "not-email", // Invalid email
+		Age:      16,          // Too young, min=18
+	}
+
+	v := New()
+	v.UseJsonTagName()
+
+	// Set messages using named parameters
+	v.SetDefaultTagMessage("required", "{field} is required")
+	v.SetDefaultTagMessage("min", "{field} must be at least {param}")
+	v.SetDefaultTagMessage("email", "{field} must be a valid email address")
+
+	err := v.Validate(user)
+	errs, ok := err.(ValidationErrors)
+	assert.True(t, ok, "Should be of type ValidationErrors")
+
+	// We expect 3 validation errors
+	assert.Len(t, errs, 3, "Should have 3 validation errors")
+
+	// Check that named parameters were interpolated correctly
+	for _, ve := range errs {
+		switch ve.Path {
+		case "username":
+			assert.Equal(t, "username must be at least 5", ve.Message)
+		case "email":
+			assert.Equal(t, "email must be a valid email address", ve.Message)
+		case "age":
+			assert.Equal(t, "age must be at least 18", ve.Message)
+		}
+	}
+
+	// Test mixed positional and named parameters
+	v = New()
+	v.UseJsonTagName()
+	v.SetDefaultTagMessage("min", "Field {0} with value {value} must be at least {param}")
+
+	err = v.Validate(user)
+	errs, ok = err.(ValidationErrors)
+	assert.True(t, ok, "Should be of type ValidationErrors")
+
+	for _, ve := range errs {
+		if ve.Path == "username" && ve.Constraint == "min" {
+			assert.Equal(t, "Field username with value abc must be at least 5", ve.Message)
+		}
+		if ve.Path == "age" && ve.Constraint == "min" {
+			assert.Equal(t, "Field age with value 16 must be at least 18", ve.Message)
+		}
+	}
+}
+
 func TestRegisterTagNameFunc(t *testing.T) {
 	v := New()
 

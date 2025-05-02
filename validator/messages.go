@@ -60,8 +60,10 @@ func (vm ValidationMessages) ResolveMessage(path, constraint string, params []in
 	return ""
 }
 
-// interpolateParams replaces positional placeholders in a message with values from an array
-// Placeholders use the format {0}, {1}, {2}, etc.
+// interpolateParams replaces placeholders in a message with values from an array
+// Supports two types of placeholders:
+// 1. Positional placeholders: {0}, {1}, {2}, etc.
+// 2. Named placeholders: {field}, {value}, {param}, etc.
 // Also supports escaped braces with double braces: {{placeholder}} -> {placeholder}
 func interpolateParams(message string, params []interface{}) string {
 	if params == nil || len(params) == 0 {
@@ -98,6 +100,30 @@ func interpolateParams(message string, params []interface{}) string {
 		return placeholder
 	})
 
+	// Define named parameter mapping
+	namedParams := map[string]interface{}{}
+	if len(params) > 0 {
+		namedParams["field"] = params[0]
+	}
+	if len(params) > 1 {
+		namedParams["value"] = params[1]
+	}
+	if len(params) > 2 {
+		namedParams["param"] = params[2]
+	}
+
+	// Replace named placeholders with parameter values
+	for name, value := range namedParams {
+		placeholder := fmt.Sprintf("{%s}", name)
+		if value != nil {
+			stringValue := fmt.Sprintf("%v", value)
+			result = strings.Replace(result, placeholder, stringValue, -1)
+		} else {
+			// Replace nil values with empty string
+			result = strings.Replace(result, placeholder, "", -1)
+		}
+	}
+
 	// Replace positional placeholders with parameter values
 	for i, param := range params {
 		placeholder := fmt.Sprintf("{%d}", i)
@@ -115,9 +141,11 @@ func interpolateParams(message string, params []interface{}) string {
 
 // CreateValidationParams creates a slice of parameters from validation error data
 // Returns parameters in a consistent order:
-// [0]: Field name
-// [1]: Field value (if available, otherwise nil)
-// [2]: Constraint parameter (if available, otherwise nil)
+// [0]/field: Field name
+// [1]/value: Field value (if available, otherwise nil)
+// [2]/param: Constraint parameter (if available, otherwise nil)
+//
+// These can be used with both positional {0}, {1}, {2} and named {field}, {value}, {param} placeholders
 func CreateValidationParams(err ValidationError) []interface{} {
 	// Always include field name as first parameter and field value as second parameter
 	params := []interface{}{err.Field, err.Actual}

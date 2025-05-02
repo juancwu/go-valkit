@@ -45,7 +45,7 @@ func main() {
 
 	// Set custom validation messages
 	v.SetDefaultTagMessage("required", "This field is required")
-	v.SetDefaultTagMessage("min", "Minimum value is {2}")
+	v.SetDefaultTagMessage("min", "Minimum value is {param}")
 	v.SetDefaultTagMessage("email", "Must be a valid email address")
 
 	// Create a user with validation errors
@@ -88,8 +88,9 @@ v.SetPathDefaultMessage("age", "Age must be valid")
 
 ### Message Interpolation
 
-Messages support parameter interpolation:
+Messages support both positional and named parameter interpolation:
 
+#### Positional Parameters:
 - `{0}`: Field name
 - `{1}`: Field value (when available)
 - `{2}`: Constraint parameter (e.g., "8" for min=8)
@@ -97,6 +98,16 @@ Messages support parameter interpolation:
 ```go
 v.SetDefaultTagMessage("min", "{0} must be at least {2} characters long")
 v.SetDefaultTagMessage("required", "{0} is required")
+```
+
+#### Named Parameters:
+- `{field}`: Field name
+- `{value}`: Field value (when available)
+- `{param}`: Constraint parameter
+
+```go
+v.SetDefaultTagMessage("min", "{field} must be at least {param} characters long")
+v.SetDefaultTagMessage("required", "{field} is required")
 ```
 
 ### Custom Error Formatting
