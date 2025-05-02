@@ -27,6 +27,20 @@ func TestValidationMessages(t *testing.T) {
 	// Add specific message with params
 	messages.SetMessage("fake", "fake", "Hello {0}, you are {1}")
 	assert.Equal(t, "Hello Tim, you are good", messages.ResolveMessage("fake", "fake", []interface{}{"Tim", "good"}))
+
+	// Test with custom parameters
+	customParams := make(CustomParams)
+	customParams["appName"] = "TestApp"
+	customParams["version"] = "1.0.0"
+
+	messages.SetMessage("app", "info", "Welcome to {appName} version {version}")
+	assert.Equal(t, "Welcome to TestApp version 1.0.0",
+		messages.ResolveMessage("app", "info", nil, customParams))
+
+	// Test custom params with standard params
+	messages.SetMessage("user", "login", "User {0} logged into {appName} v{version}")
+	assert.Equal(t, "User john logged into TestApp v1.0.0",
+		messages.ResolveMessage("user", "login", []interface{}{"john"}, customParams))
 }
 
 func TestInterpolateParams(t *testing.T) {
@@ -180,6 +194,158 @@ func TestInterpolateParams(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
+
+	// Test custom parameters separately
+	t.Run("Custom parameters only", func(t *testing.T) {
+		customParams := make(CustomParams)
+		customParams["appName"] = "TestApp"
+		customParams["version"] = "1.0.0"
+
+		message := "Welcome to {appName} version {version}"
+		expected := "Welcome to TestApp version 1.0.0"
+
+		result := interpolateParams(message, nil, customParams)
+		assert.Equal(t, expected, result)
+	})
+
+	t.Run("Custom parameters with standard params", func(t *testing.T) {
+		customParams := make(CustomParams)
+		customParams["appName"] = "TestApp"
+		customParams["domain"] = "example.com"
+
+		message := "User {field} registered at {domain} using {appName}"
+		params := []interface{}{"john.doe"}
+		expected := "User john.doe registered at example.com using TestApp"
+
+		result := interpolateParams(message, params, customParams)
+		assert.Equal(t, expected, result)
+	})
+
+	t.Run("Custom parameters override standard params", func(t *testing.T) {
+		customParams := make(CustomParams)
+		customParams["field"] = "CUSTOM_FIELD"
+		customParams["appName"] = "TestApp"
+
+		message := "Field {field} in {appName}"
+		params := []interface{}{"username"}
+		expected := "Field CUSTOM_FIELD in TestApp"
+
+		result := interpolateParams(message, params, customParams)
+		assert.Equal(t, expected, result)
+	})
+
+	t.Run("Multiple custom parameter sources", func(t *testing.T) {
+		customParams1 := make(CustomParams)
+		customParams1["appName"] = "TestApp"
+
+		customParams2 := make(CustomParams)
+		customParams2["version"] = "2.0.0"
+		customParams2["appName"] = "OverrideApp" // This should take precedence
+
+		message := "Welcome to {appName} version {version}"
+		expected := "Welcome to OverrideApp version 2.0.0"
+
+		result := interpolateParams(message, nil, customParams1, customParams2)
+		assert.Equal(t, expected, result)
+	})
+
+	// Test escaped braces with named parameters
+	t.Run("Named parameters with escaped braces", func(t *testing.T) {
+		message := "The {field} must use format {{fieldFormat}}"
+		params := []interface{}{"email", "test@example.com", ""}
+		expected := "The email must use format {fieldFormat}"
+
+		result := interpolateParams(message, params)
+		assert.Equal(t, expected, result)
+	})
+
+	// Test escaped braces with custom parameters
+	t.Run("Custom parameters with escaped braces", func(t *testing.T) {
+		customParams := make(CustomParams)
+		customParams["appName"] = "TestApp"
+		customParams["format"] = "JSON"
+
+		message := "{{appName}} requires {{format}} format, actual: {appName}/{format}"
+		expected := "{appName} requires {format} format, actual: TestApp/JSON"
+
+		result := interpolateParams(message, nil, customParams)
+		assert.Equal(t, expected, result)
+	})
+
+	// Test mixed escaped braces with both named and custom parameters
+	t.Run("Mixed escaped and non-escaped named and custom parameters", func(t *testing.T) {
+		customParams := make(CustomParams)
+		customParams["appName"] = "TestApp"
+		customParams["supportEmail"] = "support@example.com"
+
+		message := "Field {field} with value {{value}} must match {appName} format. Contact {{supportEmail}}."
+		params := []interface{}{"email", "test@invalid.com", ""}
+		expected := "Field email with value {value} must match TestApp format. Contact {supportEmail}."
+
+		result := interpolateParams(message, params, customParams)
+		assert.Equal(t, expected, result)
+	})
+
+	// Test with parameter name that contains braces
+	t.Run("Custom parameter name containing braces", func(t *testing.T) {
+		customParams := make(CustomParams)
+		customParams["app{Name}"] = "TestApp" // Parameter name contains braces
+
+		message := "Welcome to {app{Name}}"
+		expected := "Welcome to {app{Name}}" // Should not replace this
+
+		result := interpolateParams(message, nil, customParams)
+		assert.Equal(t, expected, result)
+	})
+
+	// Test parameter names starting with digits
+	t.Run("Parameter name starting with digit", func(t *testing.T) {
+		customParams := make(CustomParams)
+		customParams["0name"] = "TestValue" // Valid parameter name starting with digit
+
+		// The placeholder {0name} should not be replaced
+		message := "Value is {0name}"
+		expected := "Value is {0name}"
+
+		result := interpolateParams(message, nil, customParams)
+		assert.Equal(t, expected, result)
+
+		// But a custom parameter with that name should be usable in other contexts
+		message2 := "The parameter {param} has name 0name"
+		expected2 := "The parameter TestValue has name 0name"
+
+		// Adding it as the 3rd parameter (which maps to {param})
+		result2 := interpolateParams(message2, []interface{}{"field", "value", "TestValue"}, nil)
+		assert.Equal(t, expected2, result2)
+	})
+
+	// Test parameter names containing digits (but not at the start)
+	t.Run("Parameter name containing digits", func(t *testing.T) {
+		customParams := make(CustomParams)
+		customParams["name123"] = "TestValue"            // Parameter name with digits
+		customParams["prefix_2_suffix"] = "AnotherValue" // Parameter name with digits in the middle
+
+		// The placeholder {name123} should be replaced
+		message := "Value is {name123}"
+		expected := "Value is TestValue"
+
+		result := interpolateParams(message, nil, customParams)
+		assert.Equal(t, expected, result)
+
+		// The placeholder {prefix_2_suffix} should also be replaced
+		message2 := "Another value is {prefix_2_suffix}"
+		expected2 := "Another value is AnotherValue"
+
+		result2 := interpolateParams(message2, nil, customParams)
+		assert.Equal(t, expected2, result2)
+
+		// Both can be used in the same message
+		message3 := "Values: {name123} and {prefix_2_suffix}"
+		expected3 := "Values: TestValue and AnotherValue"
+
+		result3 := interpolateParams(message3, nil, customParams)
+		assert.Equal(t, expected3, result3)
+	})
 }
 
 func TestCreateValidationParams(t *testing.T) {

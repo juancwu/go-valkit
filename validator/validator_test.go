@@ -267,6 +267,88 @@ func TestNamedParameterInterpolation(t *testing.T) {
 	}
 }
 
+func TestCustomParameterInterpolation(t *testing.T) {
+	type Product struct {
+		Name  string `json:"name" validate:"required"`
+		Price int    `json:"price" validate:"required,min=1"`
+	}
+
+	// Create a product with validation errors
+	product := Product{
+		Name:  "", // Empty name (fails required)
+		Price: 0,  // Zero price (fails min=1)
+	}
+
+	v := New()
+	v.UseJsonTagName()
+
+	// Add custom parameters
+	v.AddCustomParam("appName", "TestShop")
+	v.AddCustomParam("supportEmail", "support@example.com")
+
+	// Set messages using custom parameters
+	v.SetDefaultTagMessage("required", "{field} is required for {appName}")
+	v.SetDefaultTagMessage("min", "{field} must be at least {param} for {appName}")
+
+	// Set constraint-specific message with custom parameters
+	v.SetConstraintMessage("price", "min", "Price must be positive. Contact {supportEmail} for help.")
+
+	err := v.Validate(product)
+	errs, ok := err.(ValidationErrors)
+	assert.True(t, ok, "Should be of type ValidationErrors")
+
+	// We expect 2 validation errors (name required, price required)
+	assert.Len(t, errs, 2, "Should have 2 validation errors")
+
+	// Check that custom parameters were interpolated correctly
+	var nameErrorFound, priceErrorFound bool
+	for _, ve := range errs {
+		switch {
+		case ve.Path == "name" && ve.Constraint == "required":
+			assert.Equal(t, "name is required for TestShop", ve.Message)
+			nameErrorFound = true
+		case ve.Path == "price" && ve.Constraint == "required":
+			assert.Equal(t, "price is required for TestShop", ve.Message)
+			priceErrorFound = true
+		}
+	}
+	assert.True(t, nameErrorFound, "Name required error not found")
+	assert.True(t, priceErrorFound, "Price required error not found")
+
+	// Go directly to testing custom parameter interpolation with a specific constraint message
+	// that uses a named parameter
+	v.SetConstraintMessage("price", "required", "Price field is required. Contact {supportEmail} for support.")
+
+	err = v.Validate(product)
+	errs, ok = err.(ValidationErrors)
+	assert.True(t, ok, "Should be of type ValidationErrors")
+
+	// Check that the custom parameter was interpolated
+	var customParamFound bool
+	for _, ve := range errs {
+		if ve.Path == "price" && ve.Constraint == "required" {
+			assert.Equal(t, "Price field is required. Contact support@example.com for support.", ve.Message)
+			customParamFound = true
+		}
+	}
+	assert.True(t, customParamFound, "Custom parameter interpolation not found")
+
+	// Test removing a custom parameter
+	v.RemoveCustomParam("supportEmail")
+	v.SetConstraintMessage("price", "required", "Price field needs help. Contact {supportEmail}.")
+
+	err = v.Validate(product)
+	errs, ok = err.(ValidationErrors)
+	assert.True(t, ok, "Should be of type ValidationErrors")
+
+	// Check that the removed custom parameter is not interpolated
+	for _, ve := range errs {
+		if ve.Path == "price" && ve.Constraint == "required" {
+			assert.Equal(t, "Price field needs help. Contact {supportEmail}.", ve.Message)
+		}
+	}
+}
+
 func TestRegisterTagNameFunc(t *testing.T) {
 	v := New()
 

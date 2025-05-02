@@ -3,6 +3,7 @@ package validator
 import (
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -46,14 +47,14 @@ func (vm ValidationMessages) SetDefaultMessage(path, message string) {
 
 // ResolveMessage gets the appropriate message for a path and constraint.
 // This method will return an emtpy string if no message was set for path and constraint.
-func (vm ValidationMessages) ResolveMessage(path, constraint string, params []interface{}) string {
+func (vm ValidationMessages) ResolveMessage(path, constraint string, params []interface{}, customParams ...CustomParams) string {
 	if config, exists := vm[path]; exists {
 		if msg, ok := config.Constraints[constraint]; ok {
-			return interpolateParams(msg, params)
+			return interpolateParams(msg, params, customParams...)
 		}
 
 		if config.Default != "" {
-			return interpolateParams(config.Default, params)
+			return interpolateParams(config.Default, params, customParams...)
 		}
 	}
 
@@ -61,12 +62,13 @@ func (vm ValidationMessages) ResolveMessage(path, constraint string, params []in
 }
 
 // interpolateParams replaces placeholders in a message with values from an array
-// Supports two types of placeholders:
+// Supports three types of placeholders:
 // 1. Positional placeholders: {0}, {1}, {2}, etc.
-// 2. Named placeholders: {field}, {value}, {param}, etc.
+// 2. Standard named placeholders: {field}, {value}, {param}, etc.
+// 3. Custom named parameters: any name defined in CustomParams
 // Also supports escaped braces with double braces: {{placeholder}} -> {placeholder}
-func interpolateParams(message string, params []interface{}) string {
-	if params == nil || len(params) == 0 {
+func interpolateParams(message string, params []interface{}, customParams ...CustomParams) string {
+	if (params == nil || len(params) == 0) && len(customParams) == 0 {
 		return message
 	}
 
@@ -112,23 +114,67 @@ func interpolateParams(message string, params []interface{}) string {
 		namedParams["param"] = params[2]
 	}
 
-	// Replace named placeholders with parameter values
-	for name, value := range namedParams {
-		placeholder := fmt.Sprintf("{%s}", name)
-		if value != nil {
-			stringValue := fmt.Sprintf("%v", value)
-			result = strings.Replace(result, placeholder, stringValue, -1)
-		} else {
-			// Replace nil values with empty string
-			result = strings.Replace(result, placeholder, "", -1)
+	// Add custom parameters if provided
+	if len(customParams) > 0 {
+		for _, cp := range customParams {
+			for name, value := range cp {
+				// Custom parameters override default ones
+				namedParams[name] = value
+			}
 		}
 	}
 
+	// Replace named placeholders with parameter values
+	// Use a regular expression to match exact placeholder patterns
+	placeholderRegex := regexp.MustCompile(`{([^{}]+)}`)
+	result = placeholderRegex.ReplaceAllStringFunc(result, func(placeholder string) string {
+		// Extract the parameter name without the braces
+		paramName := placeholder[1 : len(placeholder)-1]
+
+		// Special case: Skip replacing parameter names that begin with a digit
+		// This is to avoid confusion with positional parameters and ensure
+		// placeholders like {0name} remain as they are
+		if len(paramName) > 0 && paramName[0] >= '0' && paramName[0] <= '9' {
+			return placeholder
+		}
+
+		// Check if this parameter exists in the named parameters
+		if value, exists := namedParams[paramName]; exists {
+			if value != nil {
+				return fmt.Sprintf("%v", value)
+			}
+			return "" // Replace nil values with empty string
+		}
+
+		// If not found, return the original placeholder
+		return placeholder
+	})
+
 	// Replace positional placeholders with parameter values
-	for i, param := range params {
-		placeholder := fmt.Sprintf("{%d}", i)
-		stringValue := fmt.Sprintf("%v", param)
-		result = strings.Replace(result, placeholder, stringValue, -1)
+	if params != nil {
+		// Define a strict pattern for positional parameters
+		// Only match {0}, {1}, {2}, etc. as positional parameters
+		// The pattern specifically excludes leading zeros to avoid {000000000} being treated as positional
+		positionalRegex := regexp.MustCompile(`{([0-9])}` + "|" + `{([1-9][0-9]+)}`)
+		result = positionalRegex.ReplaceAllStringFunc(result, func(placeholder string) string {
+			// Extract the index without the braces
+			indexStr := placeholder[1 : len(placeholder)-1]
+
+			// Skip if the string starts with a leading zero and has more than one digit
+			if len(indexStr) > 1 && indexStr[0] == '0' {
+				return placeholder
+			}
+
+			index, err := strconv.Atoi(indexStr)
+
+			// Check if this is a valid index in our params array
+			if err == nil && index >= 0 && index < len(params) {
+				return fmt.Sprintf("%v", params[index])
+			}
+
+			// If not found or invalid, return the original placeholder
+			return placeholder
+		})
 	}
 
 	// Restore all escaped placeholders with their single-brace versions

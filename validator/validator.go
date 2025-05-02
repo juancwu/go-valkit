@@ -10,11 +10,16 @@ import (
 	govalidator "github.com/go-playground/validator/v10"
 )
 
+// CustomParams is a map of custom parameter names to their values
+// for use in validation error messages
+type CustomParams map[string]interface{}
+
 type Validator struct {
 	validator          *govalidator.Validate
 	DefaultMessage     string
 	DefaultTagMessages map[string]string
 	Messages           ValidationMessages
+	CustomParams       CustomParams
 }
 
 // New creates a new Validator instance with default configuration.
@@ -26,6 +31,7 @@ func New() *Validator {
 		DefaultMessage:     "Invalid value",
 		DefaultTagMessages: make(map[string]string),
 		Messages:           NewValidationMessages(),
+		CustomParams:       make(CustomParams),
 	}
 }
 
@@ -38,12 +44,18 @@ func (v *Validator) UseMessages(messages ValidationMessages) *Validator {
 		DefaultMessage:     v.DefaultMessage,
 		DefaultTagMessages: make(map[string]string),
 		Messages:           messages,
+		CustomParams:       make(CustomParams),
 	}
 
 	newV.DefaultMessage = v.DefaultMessage
 
 	for tag, msg := range v.DefaultTagMessages {
 		newV.DefaultTagMessages[tag] = msg
+	}
+
+	// Copy custom parameters
+	for name, value := range v.CustomParams {
+		newV.CustomParams[name] = value
 	}
 
 	return newV
@@ -76,14 +88,14 @@ func (v *Validator) ValidateCtx(ctx context.Context, i interface{}) error {
 			params := CreateValidationParams(valError)
 
 			// Try to get message from ValidationMessages first
-			message := v.Messages.ResolveMessage(normPath, tag, params)
+			message := v.Messages.ResolveMessage(normPath, tag, params, v.CustomParams)
 
 			// Fall back to default message lookup
 			if message == "" {
 				if msg, ok := v.DefaultTagMessages[tag]; ok {
-					message = interpolateParams(msg, params)
+					message = interpolateParams(msg, params, v.CustomParams)
 				} else {
-					message = interpolateParams(v.DefaultMessage, params)
+					message = interpolateParams(v.DefaultMessage, params, v.CustomParams)
 				}
 			}
 
@@ -151,6 +163,26 @@ func (v *Validator) SetPathDefaultMessage(path, message string) *Validator {
 // This allows custom tag name customization similar to UseJsonTagName but with any custom logic.
 func (v *Validator) RegisterTagNameFunc(fn func(field reflect.StructField) string) *Validator {
 	v.validator.RegisterTagNameFunc(fn)
+	return v
+}
+
+// AddCustomParam adds a custom parameter for use in validation error messages.
+// The parameter can be referenced in error messages using {paramName} syntax.
+//
+// Example:
+//
+//	v.AddCustomParam("appName", "MyApp")
+//	v.SetDefaultTagMessage("required", "{field} is required by {appName}")
+//
+// This would result in a message like "username is required by MyApp"
+func (v *Validator) AddCustomParam(name string, value interface{}) *Validator {
+	v.CustomParams[name] = value
+	return v
+}
+
+// RemoveCustomParam removes a custom parameter by name.
+func (v *Validator) RemoveCustomParam(name string) *Validator {
+	delete(v.CustomParams, name)
 	return v
 }
 

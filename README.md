@@ -88,9 +88,10 @@ v.SetPathDefaultMessage("age", "Age must be valid")
 
 ### Message Interpolation
 
-Messages support both positional and named parameter interpolation:
+Messages support positional, named, and custom parameter interpolation:
 
 #### Positional Parameters:
+
 - `{0}`: Field name
 - `{1}`: Field value (when available)
 - `{2}`: Constraint parameter (e.g., "8" for min=8)
@@ -101,6 +102,7 @@ v.SetDefaultTagMessage("required", "{0} is required")
 ```
 
 #### Named Parameters:
+
 - `{field}`: Field name
 - `{value}`: Field value (when available)
 - `{param}`: Constraint parameter
@@ -108,6 +110,75 @@ v.SetDefaultTagMessage("required", "{0} is required")
 ```go
 v.SetDefaultTagMessage("min", "{field} must be at least {param} characters long")
 v.SetDefaultTagMessage("required", "{field} is required")
+```
+
+#### Custom Parameters:
+
+You can define your own custom parameters that can be used in validation messages:
+
+```go
+// Add application-specific parameters
+v.AddCustomParam("appName", "MyShop")
+v.AddCustomParam("supportEmail", "help@myshop.com")
+
+// Use them in validation messages
+v.SetDefaultTagMessage("required", "{field} is required by {appName}")
+v.SetConstraintMessage("email", "email", "Invalid email. Contact {supportEmail} for help.")
+```
+
+#### Escaping Curly Braces:
+
+You can escape curly braces by using double braces, which works with all parameter types:
+
+```go
+// Escape field names in messages
+v.SetDefaultTagMessage("format", "Field {field} must use {{json}} format")
+// Results in: "Field username must use {json} format"
+
+// Escape custom parameters
+v.AddCustomParam("appName", "MyShop")
+v.SetDefaultTagMessage("required", "Required by {{appName}}, actual: {appName}")
+// Results in: "Required by {appName}, actual: MyShop"
+```
+
+#### Parameter Name Restrictions:
+
+The following rules apply to parameter names in placeholders:
+
+1. **Numbers with leading zeros**: Placeholders like `{000}` are treated as literals, not parameter indices:
+
+```go
+// Positional parameter used correctly
+v.SetDefaultTagMessage("min", "Value must be at least {0}")
+// Results in: "Value must be at least 5" (if param[0] is 5)
+
+// Number with leading zeros treated as literal
+v.SetDefaultTagMessage("code", "Error code {000000123} occurred")
+// Results in: "Error code {000000123} occurred" (unmodified)
+```
+
+2. **Parameter names starting with digits**: Placeholders like `{0name}` are treated as literals and left unmodified:
+
+```go
+// Parameter name starting with digit is not replaced
+v.SetDefaultTagMessage("error", "Error: {0name} is invalid")
+// Results in: "Error: {0name} is invalid" (unmodified)
+
+// Even if you try to add a custom parameter with that name
+v.AddCustomParam("0name", "test")
+// {0name} will still remain unmodified in messages
+```
+
+3. **Parameter names containing digits (but not at start)**: Placeholders like `{name123}` are valid and will be replaced:
+
+```go
+// Parameter names can contain digits if they don't start with one
+v.AddCustomParam("name123", "John")
+v.AddCustomParam("prefix_2_suffix", "Smith")
+
+// These will be correctly replaced
+v.SetDefaultTagMessage("welcome", "Hello {name123} {prefix_2_suffix}")
+// Results in: "Hello John Smith"
 ```
 
 ### Custom Error Formatting
