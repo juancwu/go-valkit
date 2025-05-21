@@ -67,11 +67,17 @@ func (v *Validator) UseMessages(messages ValidationMessages) *Validator {
 func (v *Validator) ValidateCtx(ctx context.Context, i interface{}) error {
 	if err := v.validator.StructCtx(ctx, i); err != nil {
 		validationErrors := ValidationErrors{}
+		structType := reflect.TypeOf(i)
+
+		// Handle if input is a pointer
+		if structType.Kind() == reflect.Ptr {
+			structType = structType.Elem()
+		}
 
 		for _, err := range err.(govalidator.ValidationErrors) {
 			path := getFullPath(err)
 			normPath := normalizePath(path)
-			tag := err.ActualTag()
+			constraint := err.ActualTag()
 			param := err.Param()
 			actual := err.Value()
 
@@ -79,7 +85,7 @@ func (v *Validator) ValidateCtx(ctx context.Context, i interface{}) error {
 			valError := ValidationError{
 				Field:      err.Field(),
 				Path:       path,
-				Constraint: tag,
+				Constraint: constraint,
 				Param:      param,
 				Actual:     actual,
 			}
@@ -87,12 +93,27 @@ func (v *Validator) ValidateCtx(ctx context.Context, i interface{}) error {
 			// Create params for interpolation
 			params := CreateValidationParams(valError)
 
-			// Try to get message from ValidationMessages first
-			message := v.Messages.ResolveMessage(normPath, tag, params, v.CustomParams)
+			var message string
+
+			// Try to get error message from tag
+			structField, ok := structType.FieldByName(err.StructField())
+			if ok {
+				tagMessage := getRawTagMessage(structField, constraint)
+				if tagMessage != "" {
+					// Apply parameter interpolation to the struct tag message
+					message = interpolateParams(tagMessage, params, v.CustomParams)
+				}
+			}
+
+			// Fallback to messages table
+			if message == "" {
+				// Try to get message from ValidationMessages first
+				message = v.Messages.ResolveMessage(normPath, constraint, params, v.CustomParams)
+			}
 
 			// Fall back to default message lookup
 			if message == "" {
-				if msg, ok := v.DefaultTagMessages[tag]; ok {
+				if msg, ok := v.DefaultTagMessages[constraint]; ok {
 					message = interpolateParams(msg, params, v.CustomParams)
 				} else {
 					message = interpolateParams(v.DefaultMessage, params, v.CustomParams)
@@ -169,12 +190,29 @@ func (v *Validator) RegisterTagNameFunc(fn func(field reflect.StructField) strin
 // AddCustomParam adds a custom parameter for use in validation error messages.
 // The parameter can be referenced in error messages using {paramName} syntax.
 //
-// Example:
+// These custom parameters work alongside the standard ones ({field}, {value}, {param}) and
+// allow you to insert application-specific values into validation messages.
 //
+// Examples:
+//
+//	// Basic usage
 //	v.AddCustomParam("appName", "MyApp")
 //	v.SetDefaultTagMessage("required", "{field} is required by {appName}")
+//	// Results in: "username is required by MyApp"
 //
-// This would result in a message like "username is required by MyApp"
+//	// Multiple custom parameters
+//	v.AddCustomParam("appName", "MyApp")
+//	v.AddCustomParam("supportEmail", "help@example.com")
+//	v.SetConstraintMessage("email", "email", "Invalid email. Contact {supportEmail} for help from {appName}.")
+//	// Results in: "Invalid email. Contact help@example.com for help from MyApp."
+//
+//	// Custom parameters with standard parameters
+//	v.AddCustomParam("minLength", 8)
+//	v.SetConstraintMessage("password", "min", "{field} must have at least {param} characters (minimum: {minLength})")
+//	// Results in: "password must have at least 6 characters (minimum: 8)"
+//
+// Note: Custom parameter names cannot start with digits (e.g. "0name") as these would be
+// treated as literals in the message interpolation system.
 func (v *Validator) AddCustomParam(name string, value interface{}) *Validator {
 	v.CustomParams[name] = value
 	return v

@@ -86,6 +86,37 @@ v.SetConstraintMessage("username", "required", "Username cannot be empty")
 v.SetPathDefaultMessage("age", "Age must be valid")
 ```
 
+### Inline Error Messages with Struct Tags
+
+You can define error messages directly in your struct tags using `errmsg` and `errmsg-{constraint}`:
+
+```go
+type User struct {
+    // General error message for any constraint
+    Email string `json:"email" validate:"required,email" errmsg:"Email address has an issue"`
+
+    // Constraint-specific error messages
+    Username string `json:"username" validate:"required,min=5"
+                    errmsg-required:"Username is mandatory"
+                    errmsg-min:"Username must have at least {param} characters"`
+
+    // With parameter interpolation
+    Age int `json:"age" validate:"required,min=18"
+             errmsg-min:"Age must be at least {param} for {appName}"`
+}
+
+// Custom parameters can be used in the struct tag messages
+v.AddCustomParam("appName", "MyApplication")
+```
+
+The validation error message resolution order is:
+
+1. Field-specific struct tag error message (`errmsg-{constraint}` or `errmsg`)
+2. Path-specific message set with `SetConstraintMessage(path, constraint, message)`
+3. Path default message set with `SetPathDefaultMessage(path, message)`
+4. Constraint-specific default message set with `SetDefaultTagMessage(constraint, message)`
+5. Global default message set with `SetDefaultMessage(message)`
+
 ### Message Interpolation
 
 Messages support positional, named, and custom parameter interpolation:

@@ -428,6 +428,153 @@ func TestRegisterAlias(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestStructTagErrorMessages(t *testing.T) {
+	type User struct {
+		Username string `json:"username" validate:"required,min=5" errmsg-required:"Username is mandatory" errmsg-min:"Username must have at least {param} characters"`
+		Email    string `json:"email" validate:"required,email" errmsg:"Email field has an issue"`
+		Age      int    `json:"age" validate:"required,min=18" errmsg-min:"Age must be at least {param} for {appName}"`
+	}
+
+	v := New()
+	v.UseJsonTagName()
+	v.AddCustomParam("appName", "TestApp")
+
+	// Create a user with validation errors
+	user := User{
+		Username: "",        // Empty (fails required)
+		Email:    "invalid", // Invalid format (fails email)
+		Age:      16,        // Too young (fails min=18)
+	}
+
+	err := v.Validate(user)
+	errs, ok := err.(ValidationErrors)
+	assert.True(t, ok, "Should be of type ValidationErrors")
+
+	// Should have 3 validation errors
+	assert.Len(t, errs, 3, "Should have 3 validation errors")
+
+	// Check that struct tag error messages were used correctly
+	for _, ve := range errs {
+		switch {
+		case ve.Path == "username" && ve.Constraint == "required":
+			// Should use constraint-specific errmsg-required tag
+			assert.Equal(t, "Username is mandatory", ve.Message)
+		case ve.Path == "username" && ve.Constraint == "min":
+			// Should use constraint-specific errmsg-min tag with parameter interpolation
+			assert.Equal(t, "Username must have at least 5 characters", ve.Message)
+		case ve.Path == "email" && ve.Constraint == "email":
+			// Should use the default errmsg tag for all constraints on this field
+			assert.Equal(t, "Email field has an issue", ve.Message)
+		case ve.Path == "age" && ve.Constraint == "min":
+			// Should use constraint-specific errmsg-min tag with custom parameter interpolation
+			assert.Equal(t, "Age must be at least 18 for TestApp", ve.Message)
+		}
+	}
+
+	// Test fallback to other message resolution when no struct tag is present
+	v.SetConstraintMessage("age", "min", "Age must be greater than or equal to {param}")
+
+	err = v.Validate(user)
+	errs, ok = err.(ValidationErrors)
+	assert.True(t, ok, "Should be of type ValidationErrors")
+
+	// Find the age.min error and verify it uses the struct tag message (higher priority)
+	var ageMinError *ValidationError
+	for i, ve := range errs {
+		if ve.Path == "age" && ve.Constraint == "min" {
+			ageMinError = &errs[i]
+			break
+		}
+	}
+
+	assert.NotNil(t, ageMinError, "Age min error should exist")
+	assert.Equal(t, "Age must be at least 18 for TestApp", ageMinError.Message)
+}
+
+func TestCustomParamsWithStructTagMessages(t *testing.T) {
+	type Product struct {
+		Name     string `json:"name" validate:"required" errmsg-required:"Product name is required for {company} catalog"`
+		Price    int    `json:"price" validate:"required,min=1" errmsg-min:"Price must be at least {param} {currency}"`
+		SKU      string `json:"sku" validate:"required" errmsg:"SKU error for {company} ({department})"`
+		Quantity int    `json:"quantity" validate:"min=0" errmsg:"Quantity issue reported by {supportEmail}"`
+	}
+
+	// Create a product with validation errors
+	product := Product{
+		Name:     "", // Empty (fails required)
+		Price:    0,  // Invalid (fails min=1)
+		SKU:      "", // Empty (fails required)
+		Quantity: -1, // Invalid (fails min=0)
+	}
+
+	// Test with multiple custom parameters
+	v := New()
+	v.UseJsonTagName()
+	v.AddCustomParam("company", "ACME Corp")
+	v.AddCustomParam("currency", "USD")
+	v.AddCustomParam("department", "Electronics")
+	v.AddCustomParam("supportEmail", "support@acme.com")
+
+	err := v.Validate(product)
+	errs, ok := err.(ValidationErrors)
+	assert.True(t, ok, "Should be of type ValidationErrors")
+
+	// We expect 4 validation errors
+	assert.Len(t, errs, 4, "Should have 4 validation errors")
+
+	// Check that custom parameters were interpolated in the struct tag messages
+	for _, ve := range errs {
+		switch {
+		case ve.Path == "name" && ve.Constraint == "required":
+			assert.Equal(t, "Product name is required for ACME Corp catalog", ve.Message)
+		case ve.Path == "price" && ve.Constraint == "min":
+			assert.Equal(t, "Price must be at least 1 USD", ve.Message)
+		case ve.Path == "sku" && ve.Constraint == "required":
+			assert.Equal(t, "SKU error for ACME Corp (Electronics)", ve.Message)
+		case ve.Path == "quantity" && ve.Constraint == "min":
+			assert.Equal(t, "Quantity issue reported by support@acme.com", ve.Message)
+		}
+	}
+
+	// Test chained validator with additional custom parameters
+	customV := v.UseMessages(NewValidationMessages())
+	customV.AddCustomParam("company", "XYZ Inc")
+	customV.AddCustomParam("newParam", "test123")
+
+	err = customV.Validate(product)
+	errs, ok = err.(ValidationErrors)
+	assert.True(t, ok, "Should be of type ValidationErrors")
+
+	// Find name error and verify custom parameters from chained validator are used
+	var nameError *ValidationError
+	for i, ve := range errs {
+		if ve.Path == "name" && ve.Constraint == "required" {
+			nameError = &errs[i]
+			break
+		}
+	}
+
+	assert.NotNil(t, nameError, "Name error should exist")
+	assert.Equal(t, "Product name is required for XYZ Inc catalog", nameError.Message,
+		"Custom parameter should be overridden in the chained validator")
+
+	// Try with new parameter that only exists in the chained validator
+	type Contact struct {
+		Email string `json:"email" validate:"required,email" errmsg-email:"Email format issue ({newParam})"`
+	}
+
+	contact := Contact{
+		Email: "notanemail",
+	}
+
+	err = customV.Validate(contact)
+	errs, ok = err.(ValidationErrors)
+	assert.True(t, ok, "Should be of type ValidationErrors")
+
+	assert.Len(t, errs, 1, "Should have 1 validation error")
+	assert.Equal(t, "Email format issue (test123)", errs[0].Message)
+}
+
 func TestUseMessages(t *testing.T) {
 	// Create a base validator with some default messages
 	baseValidator := New()
@@ -458,6 +605,79 @@ func TestUseMessages(t *testing.T) {
 	v.SetDefaultMessage("New default message")
 	assert.Equal(t, "Base default message", baseValidator.DefaultMessage)
 	assert.Equal(t, "New default message", v.DefaultMessage)
+}
+
+func TestErrmsgTagFallback(t *testing.T) {
+	// Define a struct with both specific and generic error message tags
+	type User struct {
+		// Only has errmsg-required but no errmsg-min
+		Username string `json:"username" validate:"required,min=5" errmsg-required:"Username field is required"`
+
+		// Has both errmsg-email and errmsg
+		Email string `json:"email" validate:"required,email" errmsg-email:"Invalid email format" errmsg:"General email error"`
+
+		// Only has generic errmsg for all constraints
+		Age int `json:"age" validate:"required,min=18" errmsg:"Age validation failed"`
+	}
+
+	v := New()
+	v.UseJsonTagName()
+
+	user := User{
+		Username: "abc",          // Fails min=5
+		Email:    "not-an-email", // Fails email validation
+		Age:      16,             // Fails min=18
+	}
+
+	err := v.Validate(user)
+	errs, ok := err.(ValidationErrors)
+	assert.True(t, ok, "Should be of type ValidationErrors")
+
+	// We expect 3 validation errors
+	assert.Len(t, errs, 3, "Should have 3 validation errors")
+
+	// Check the error messages
+	for _, ve := range errs {
+		switch {
+		case ve.Path == "username" && ve.Constraint == "min":
+			// Should fall back to default message since no errmsg-min or errmsg is provided
+			assert.NotEqual(t, "Username field is required", ve.Message,
+				"Should not use errmsg-required for min constraint")
+			assert.NotContains(t, ve.Message, "Username field is required",
+				"Message should not contain content from errmsg-required tag")
+
+		case ve.Path == "email" && ve.Constraint == "email":
+			// Should use the specific constraint message
+			assert.Equal(t, "Invalid email format", ve.Message,
+				"Should use errmsg-email tag for email constraint")
+
+		case ve.Path == "age" && ve.Constraint == "min":
+			// Should fall back to the generic errmsg
+			assert.Equal(t, "Age validation failed", ve.Message,
+				"Should use generic errmsg tag when no constraint-specific tag exists")
+		}
+	}
+
+	// Test with a field that has errmsg but not errmsg-{constraint}
+	v = New()
+	v.UseJsonTagName()
+
+	type Product struct {
+		Name string `json:"name" validate:"required,min=3" errmsg:"Name has validation issues"`
+	}
+
+	product := Product{
+		Name: "a", // Fails min=3
+	}
+
+	err = v.Validate(product)
+	errs, ok = err.(ValidationErrors)
+	assert.True(t, ok, "Should be of type ValidationErrors")
+
+	assert.Len(t, errs, 1, "Should have 1 validation error")
+	assert.Equal(t, "min", errs[0].Constraint, "Constraint should be 'min'")
+	assert.Equal(t, "Name has validation issues", errs[0].Message,
+		"Should fall back to errmsg tag when errmsg-min is not found")
 }
 
 func TestExtractArrayIndex(t *testing.T) {

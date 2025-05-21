@@ -37,7 +37,22 @@ func (ve ValidationErrors) Error() string {
 	return builder.String()
 }
 
-// GroupErrorsByPath groups validation errors by their path
+// GroupErrorsByPath groups validation errors by their path, returning a map
+// where the keys are field paths and the values are the ValidationErrors for that path.
+//
+// This is useful for organizing errors by field for display in forms or API responses,
+// where you want to show all validation errors for each field grouped together.
+//
+// Example:
+//
+//	errors := validator.Validate(user).(validator.ValidationErrors)
+//	groupedErrors := errors.GroupErrorsByPath()
+//
+//	// Get all errors for the email field
+//	emailErrors := groupedErrors["email"]
+//
+//	// Get all errors for a nested field
+//	addressErrors := groupedErrors["user.address.street"]
 func (ve ValidationErrors) GroupErrorsByPath() map[string]ValidationErrors {
 	groupedErrors := make(map[string]ValidationErrors)
 
@@ -48,7 +63,27 @@ func (ve ValidationErrors) GroupErrorsByPath() map[string]ValidationErrors {
 	return groupedErrors
 }
 
-// ErrorsForPath returns all errors for a specific path
+// ErrorsForPath returns all validation errors for a specific path.
+//
+// This allows filtering the validation errors to get only those related to a specific
+// field or field path, which is useful when you need to know if a particular field has
+// validation errors.
+//
+// Parameters:
+//   - path: The field path to filter errors for (e.g. "email", "user.name", "addresses[0].street")
+//
+// Returns:
+//   - ValidationErrors containing only the errors for the given path, or an empty slice if none found
+//
+// Example:
+//
+//	errors := validator.Validate(user).(validator.ValidationErrors)
+//
+//	// Check if the email field has errors
+//	emailErrors := errors.ErrorsForPath("email")
+//	if len(emailErrors) > 0 {
+//	    // Handle email errors...
+//	}
 func (ve ValidationErrors) ErrorsForPath(path string) ValidationErrors {
 	var pathErrors ValidationErrors
 

@@ -67,6 +67,11 @@ func (vm ValidationMessages) ResolveMessage(path, constraint string, params []in
 // 2. Standard named placeholders: {field}, {value}, {param}, etc.
 // 3. Custom named parameters: any name defined in CustomParams
 // Also supports escaped braces with double braces: {{placeholder}} -> {placeholder}
+//
+// Important rules for parameters:
+// - Numbers with leading zeros (e.g. {000}) are treated as literals, not parameter indices
+// - Parameter names starting with digits (e.g. {0name}) are treated as literals
+// - Parameter names can contain digits if they don't start with one (e.g. {name123})
 func interpolateParams(message string, params []interface{}, customParams ...CustomParams) string {
 	if (params == nil || len(params) == 0) && len(customParams) == 0 {
 		return message
@@ -191,7 +196,17 @@ func interpolateParams(message string, params []interface{}, customParams ...Cus
 // [1]/value: Field value (if available, otherwise nil)
 // [2]/param: Constraint parameter (if available, otherwise nil)
 //
-// These can be used with both positional {0}, {1}, {2} and named {field}, {value}, {param} placeholders
+// These parameters are automatically available in all validation messages and can be referenced in two ways:
+// 1. Using positional placeholders: {0}, {1}, {2}
+// 2. Using named placeholders: {field}, {value}, {param}
+//
+// Example:
+//
+//	// These two formats are equivalent
+//	v.SetConstraintMessage("username", "min", "{0} must be at least {2} characters")
+//	v.SetConstraintMessage("email", "required", "{field} is required for validation")
+//
+// Note: Custom parameters added via AddCustomParam() can be used alongside these standard parameters
 func CreateValidationParams(err ValidationError) []interface{} {
 	// Always include field name as first parameter and field value as second parameter
 	params := []interface{}{err.Field, err.Actual}

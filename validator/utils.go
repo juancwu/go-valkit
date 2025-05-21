@@ -1,6 +1,8 @@
 package validator
 
 import (
+	"fmt"
+	"reflect"
 	"regexp"
 	"strings"
 
@@ -48,4 +50,33 @@ func normalizePath(path string) string {
 	path = re.ReplaceAllString(path, ".")
 
 	return path
+}
+
+// getRawTagMessage extracts validation error messages from struct field tags.
+// It first looks for a constraint-specific error message tag (errmsg-{constraint}),
+// then falls back to the general error message tag (errmsg) if no constraint-specific tag is found.
+//
+// Tags follow this format:
+//   - errmsg-{constraint}: "Error message for specific constraint"
+//   - errmsg: "General error message for any constraint"
+//
+// The returned message string can include parameter interpolation using {0}, {field}, {param}, etc.
+// See the interpolateParams function for details on parameter formatting.
+//
+// Example:
+//
+//	type User struct {
+//	    Username string `validate:"required,min=3" errmsg-required:"Username is mandatory" errmsg-min:"Username must have at least {param} characters"`
+//	    Email    string `validate:"required,email" errmsg:"Email address has an issue"`
+//	}
+func getRawTagMessage(field reflect.StructField, constraint string) string {
+	// Try to get constraint specific error message tag
+	message := field.Tag.Get(fmt.Sprintf("errmsg-%s", constraint))
+
+	// Try to get default error message tag
+	if message == "" {
+		message = field.Tag.Get("errmsg")
+	}
+
+	return message
 }
