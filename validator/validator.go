@@ -96,8 +96,10 @@ func (v *Validator) ValidateCtx(ctx context.Context, i interface{}) error {
 			var message string
 
 			// Try to get error message from tag
-			structField, ok := structType.FieldByName(err.StructField())
-			if ok {
+			// For nested structs, we need to traverse the struct hierarchy to find the field
+			// with the validation tag
+			structField, found := getStructFieldFromNamespace(structType, err.StructNamespace(), err.StructField())
+			if found {
 				tagMessage := getRawTagMessage(structField, constraint)
 				if tagMessage != "" {
 					// Apply parameter interpolation to the struct tag message
@@ -105,7 +107,7 @@ func (v *Validator) ValidateCtx(ctx context.Context, i interface{}) error {
 				}
 			}
 
-			// Fallback to messages table
+			// Fallback to messages table if no struct tag message found
 			if message == "" {
 				// Try to get message from ValidationMessages first
 				message = v.Messages.ResolveMessage(normPath, constraint, params, v.CustomParams)

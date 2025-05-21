@@ -812,3 +812,114 @@ func TestSetPathDefaultMessage(t *testing.T) {
 	message = v.Messages.ResolveMessage("user.name", "min", nil)
 	assert.Equal(t, "User name is invalid", message)
 }
+
+func TestNestedStructErrmsgTags(t *testing.T) {
+	// Define a nested struct with errmsg tags at different levels
+	type Address struct {
+		Street  string `json:"street" validate:"required" errmsg-required:"Street is a required field"`
+		City    string `json:"city" validate:"required" errmsg-required:"City cannot be empty"`
+		ZipCode string `json:"zipCode" validate:"required,len=5" errmsg-len:"Zip code must be exactly {param} characters"`
+	}
+
+	type User struct {
+		Name     string         `json:"name" validate:"required" errmsg-required:"User name is required"`
+		Email    string         `json:"email" validate:"required,email" errmsg-email:"Please provide a valid email address"`
+		Address  []Address      `json:"addresses" validate:"required,dive"`
+		Metadata map[string]int `json:"metadata" validate:"required,dive,gt=0" errmsg-required:"Metadata is required" errmsg-gt:"{field} must be greater than {param}"`
+	}
+
+	// Create a user with validation errors at different nesting levels
+	user := User{
+		Name:  "",         // Missing name
+		Email: "invalid@", // Invalid email format
+		Address: []Address{
+			{
+				Street:  "",    // Missing street
+				City:    "",    // Missing city
+				ZipCode: "123", // Zip code too short
+			},
+		},
+		Metadata: map[string]int{
+			"exp": 0,
+		},
+	}
+
+	v := New()
+	v.UseJsonTagName()
+
+	err := v.Validate(user)
+	errs, ok := err.(ValidationErrors)
+	assert.True(t, ok, "Should be of type ValidationErrors")
+
+	// Create a map to easily check the error messages for each path
+	errorMap := make(map[string]string)
+	for _, ve := range errs {
+		errorMap[ve.Path+":"+ve.Constraint] = ve.Message
+	}
+
+	t.Log(errorMap)
+
+	// Check that the error messages from the struct tags are correctly applied
+	assert.Equal(t, "User name is required", errorMap["name:required"])
+	assert.Equal(t, "Please provide a valid email address", errorMap["email:email"])
+	assert.Equal(t, "Street is a required field", errorMap["addresses[0].street:required"])
+	assert.Equal(t, "City cannot be empty", errorMap["addresses[0].city:required"])
+	assert.Equal(t, "Zip code must be exactly 5 characters", errorMap["addresses[0].zipCode:len"])
+	assert.Equal(t, "metadata[exp] must be greater than 0", errorMap["metadata[exp]:gt"])
+}
+
+func TestNestedArrayCustomParams(t *testing.T) {
+	// Define a nested struct with errmsg tags that use custom parameters
+	type Contact struct {
+		Type  string `json:"type" validate:"required,oneof=home work mobile" errmsg-oneof:"Contact type must be one of: {param}"`
+		Value string `json:"value" validate:"required" errmsg-required:"Contact {field} is required for {appName}"`
+	}
+
+	type Profile struct {
+		Bio      string    `json:"bio" validate:"required,min=10" errmsg-min:"Bio must be at least {param} characters long ({appName} requirement)"`
+		Contacts []Contact `json:"contacts" validate:"required,min=1,dive" errmsg-min:"At least {param} contact is required for {appName}"`
+	}
+
+	type User struct {
+		Username string  `json:"username" validate:"required" errmsg-required:"Username is required for {appName}"`
+		Profile  Profile `json:"profile" validate:"required"`
+	}
+
+	// Create a user with validation errors at different nesting levels
+	user := User{
+		Username: "",
+		Profile: Profile{
+			Bio: "Too short", // Bio too short
+			Contacts: []Contact{
+				{
+					Type:  "invalid", // Invalid type
+					Value: "",        // Missing value
+				},
+			},
+		},
+	}
+
+	v := New()
+	v.UseJsonTagName()
+	v.AddCustomParam("appName", "TestingApp")
+
+	err := v.Validate(user)
+	errs, ok := err.(ValidationErrors)
+	assert.True(t, ok, "Should be of type ValidationErrors")
+
+	// We expect 4 validation errors
+	assert.Len(t, errs, 4, "Should have 4 validation errors")
+
+	// Create a map to easily check the error messages for each path
+	errorMap := make(map[string]string)
+	for _, ve := range errs {
+		errorMap[ve.Path+":"+ve.Constraint] = ve.Message
+	}
+
+	// Check that the error messages from the struct tags are correctly applied
+	// and custom parameters are interpolated properly
+	assert.Equal(t, "Username is required for TestingApp", errorMap["username:required"])
+	assert.Equal(t, "Bio must be at least 10 characters long (TestingApp requirement)", errorMap["profile.bio:min"])
+	assert.Equal(t, "Contact type must be one of: home work mobile", errorMap["profile.contacts[0].type:oneof"])
+	assert.Equal(t, "Contact value is required for TestingApp", errorMap["profile.contacts[0].value:required"])
+}
