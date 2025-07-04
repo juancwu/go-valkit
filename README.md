@@ -17,7 +17,7 @@ with better error handling, customizable messages, and framework integrations.
 ## Installation
 
 ```bash
-go get github.com/juancwu/go-valkit
+go get github.com/juancwu/go-valkit/v2
 ```
 
 ## Quick Start
