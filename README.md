@@ -29,7 +29,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/juancwu/go-valkit/validator"
+	"github.com/juancwu/go-valkit/v2/validator"
 )
 
 type User struct {
