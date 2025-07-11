@@ -267,4 +267,8 @@ func (v *Validator) RegisterValidation(tag string, fn govalidator.Func, callVali
 func (v *Validator) RegisterAlias(alias, tags string) {
 	v.BaseValidator.RegisterAlias(alias, tags)
 }
+
+// RegisterCustomTypeFunc registers a function that understands how to extract data against a number of custom types.
+func (v *Validator) RegisterCustomTypeFunc(fn govalidator.CustomTypeFunc, types ...any) {
+	v.BaseValidator.RegisterCustomTypeFunc(fn, types...)
 }
