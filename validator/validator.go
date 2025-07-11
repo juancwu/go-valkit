@@ -15,7 +15,7 @@ import (
 type CustomParams map[string]interface{}
 
 type Validator struct {
-	validator          *govalidator.Validate
+	BaseValidator      *govalidator.Validate
 	DefaultMessage     string
 	DefaultTagMessages map[string]string
 	Messages           ValidationMessages
@@ -27,7 +27,7 @@ func New() *Validator {
 	v := govalidator.New()
 
 	return &Validator{
-		validator:          v,
+		BaseValidator:      v,
 		DefaultMessage:     "Invalid value",
 		DefaultTagMessages: make(map[string]string),
 		Messages:           NewValidationMessages(),
@@ -40,7 +40,7 @@ func New() *Validator {
 // This allows different handlers or methods to have custom error messages.
 func (v *Validator) UseMessages(messages ValidationMessages) *Validator {
 	newV := &Validator{
-		validator:          v.validator,
+		BaseValidator:      v.BaseValidator,
 		DefaultMessage:     v.DefaultMessage,
 		DefaultTagMessages: make(map[string]string),
 		Messages:           messages,
@@ -65,7 +65,7 @@ func (v *Validator) UseMessages(messages ValidationMessages) *Validator {
 // Returns nil if validation passes, or ValidationErrors containing details about
 // validation failures.
 func (v *Validator) ValidateCtx(ctx context.Context, i interface{}) error {
-	if err := v.validator.StructCtx(ctx, i); err != nil {
+	if err := v.BaseValidator.StructCtx(ctx, i); err != nil {
 		validationErrors := ValidationErrors{}
 		structType := reflect.TypeOf(i)
 
@@ -185,7 +185,7 @@ func (v *Validator) SetPathDefaultMessage(path, message string) *Validator {
 // RegisterTagNameFunc registers a function to extract the tag name from the field's struct tag.
 // This allows custom tag name customization similar to UseJsonTagName but with any custom logic.
 func (v *Validator) RegisterTagNameFunc(fn func(field reflect.StructField) string) *Validator {
-	v.validator.RegisterTagNameFunc(fn)
+	v.BaseValidator.RegisterTagNameFunc(fn)
 	return v
 }
 
@@ -254,7 +254,7 @@ func (v *Validator) UseJsonTagName() *Validator {
 // RegisterValidation registers a custom validation with the given tag.
 // This allows developers to add their own validation logic beyond what's built-in.
 func (v *Validator) RegisterValidation(tag string, fn govalidator.Func, callValidationEvenIfNull ...bool) error {
-	return v.validator.RegisterValidation(tag, fn, callValidationEvenIfNull...)
+	return v.BaseValidator.RegisterValidation(tag, fn, callValidationEvenIfNull...)
 }
 
 // RegisterAlias registers a mapping of a single validation tag that
@@ -265,5 +265,6 @@ func (v *Validator) RegisterValidation(tag string, fn govalidator.Func, callVali
 //
 //	v.RegisterAlias("userid", "required,min=6,max=30")
 func (v *Validator) RegisterAlias(alias, tags string) {
-	v.validator.RegisterAlias(alias, tags)
+	v.BaseValidator.RegisterAlias(alias, tags)
+}
 }
