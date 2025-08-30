@@ -74,56 +74,65 @@ func (v *Validator) ValidateCtx(ctx context.Context, i interface{}) error {
 			structType = structType.Elem()
 		}
 
-		for _, err := range err.(govalidator.ValidationErrors) {
-			path := getFullPath(err)
-			normPath := normalizePath(path)
-			constraint := err.ActualTag()
-			param := err.Param()
-			actual := err.Value()
+		switch e := err.(type) {
+		case govalidator.ValidationErrors:
+			for _, ve := range e {
+				path := getFullPath(ve)
+				normPath := normalizePath(path)
+				constraint := ve.ActualTag()
+				param := ve.Param()
+				actual := ve.Value()
 
-			// Create validation error with basic information
-			valError := ValidationError{
-				Field:      err.Field(),
-				Path:       path,
-				Constraint: constraint,
-				Param:      param,
-				Actual:     actual,
-			}
-
-			// Create params for interpolation
-			params := CreateValidationParams(valError)
-
-			var message string
-
-			// Try to get error message from tag
-			// For nested structs, we need to traverse the struct hierarchy to find the field
-			// with the validation tag
-			structField, found := getStructFieldFromNamespace(structType, err.StructNamespace(), err.StructField())
-			if found {
-				tagMessage := getRawTagMessage(structField, constraint)
-				if tagMessage != "" {
-					// Apply parameter interpolation to the struct tag message
-					message = interpolateParams(tagMessage, params, v.CustomParams)
+				// Create validation error with basic information
+				valError := ValidationError{
+					Field:      ve.Field(),
+					Path:       path,
+					Constraint: constraint,
+					Param:      param,
+					Actual:     actual,
 				}
-			}
 
-			// Fallback to messages table if no struct tag message found
-			if message == "" {
-				// Try to get message from ValidationMessages first
-				message = v.Messages.ResolveMessage(normPath, constraint, params, v.CustomParams)
-			}
+				// Create params for interpolation
+				params := CreateValidationParams(valError)
 
-			// Fall back to default message lookup
-			if message == "" {
-				if msg, ok := v.DefaultTagMessages[constraint]; ok {
-					message = interpolateParams(msg, params, v.CustomParams)
-				} else {
-					message = interpolateParams(v.DefaultMessage, params, v.CustomParams)
+				var message string
+
+				// Try to get error message from tag
+				// For nested structs, we need to traverse the struct hierarchy to find the field
+				// with the validation tag
+				structField, found := getStructFieldFromNamespace(structType, ve.StructNamespace(), ve.StructField())
+				if found {
+					tagMessage := getRawTagMessage(structField, constraint)
+					if tagMessage != "" {
+						// Apply parameter interpolation to the struct tag message
+						message = interpolateParams(tagMessage, params, v.CustomParams)
+					}
 				}
-			}
 
-			valError.Message = message
-			validationErrors = append(validationErrors, valError)
+				// Fallback to messages table if no struct tag message found
+				if message == "" {
+					// Try to get message from ValidationMessages first
+					message = v.Messages.ResolveMessage(normPath, constraint, params, v.CustomParams)
+				}
+
+				// Fall back to default message lookup
+				if message == "" {
+					if msg, ok := v.DefaultTagMessages[constraint]; ok {
+						message = interpolateParams(msg, params, v.CustomParams)
+					} else {
+						message = interpolateParams(v.DefaultMessage, params, v.CustomParams)
+					}
+				}
+
+				valError.Message = message
+				validationErrors = append(validationErrors, valError)
+			}
+		case *govalidator.InvalidValidationError:
+			// This indicates a problem with the validator itself, such as a bad struct tag.
+			// Return this error directly as it is a bug in the code, not user input.
+			return e
+		default:
+			return err
 		}
 
 		return validationErrors
